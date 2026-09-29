@@ -10,6 +10,7 @@ import SimilarityView from './components/similarity/SimilarityView';
 import ContentPlannerView from './components/planner/ContentPlannerView';
 import CSVImportView from './components/importer/CSVImportView';
 import SettingsView from './components/settings/SettingsView';
+import AgentsStudioView from './components/agents/AgentsStudioView';
 import ScoreModal from './components/common/ScoreModal';
 import AuthModal from './components/auth/AuthModal';
 import { postsAPI, recommendationsAPI, plannerAPI, systemAPI } from './services/api';
@@ -174,6 +175,13 @@ function MainApp() {
 
           {currentTab === 'recommendations' && (
             <RecommendationsView
+              onOpenScoreModal={handleOpenScoreModal}
+            />
+          )}
+
+          {currentTab === 'agents' && (
+            <AgentsStudioView
+              onNavigate={setCurrentTab}
               onOpenScoreModal={handleOpenScoreModal}
             />
           )}

@@ -12,7 +12,8 @@ import {
   User, 
   AtSign, 
   CheckCircle,
-  Database
+  Database,
+  Bot
 } from 'lucide-react';
 
 export default function Sidebar({ 
@@ -31,6 +32,7 @@ export default function Sidebar({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'library', label: 'Content Library', icon: Library, count: postCount },
     { id: 'recommendations', label: 'Recommendations', icon: Sparkles, badge: 'AI' },
+    { id: 'agents', label: 'AI Agents Swarm', icon: Bot, badge: 'LangChain' },
     { id: 'similarity', label: 'Similarity Engine', icon: Network },
     { id: 'planner', label: 'Content Planner', icon: CalendarCheck },
     { id: 'importer', label: 'CSV Data Ingest', icon: FileSpreadsheet },

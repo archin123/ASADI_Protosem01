@@ -71,7 +71,7 @@ export function preprocessText(caption = '', hashtags = []) {
 /**
  * Compute Term Frequency (TF) for a token list
  */
-function computeTF(tokens) {
+export function computeTF(tokens) {
   const tf = new Map();
   if (tokens.length === 0) return tf;
 
@@ -90,7 +90,7 @@ function computeTF(tokens) {
 /**
  * Compute Inverse Document Frequency (IDF) across all posts
  */
-function computeIDF(documentsTokens) {
+export function computeIDF(documentsTokens) {
   const idf = new Map();
   const N = documentsTokens.length;
 
@@ -112,7 +112,7 @@ function computeIDF(documentsTokens) {
 /**
  * Compute Cosine Similarity between two TF-IDF maps
  */
-function computeCosineSimilarity(vecA, vecB) {
+export function computeCosineSimilarity(vecA, vecB) {
   let dotProduct = 0;
   let normA = 0;
   let normB = 0;

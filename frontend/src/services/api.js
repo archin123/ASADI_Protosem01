@@ -78,4 +78,11 @@ export const aiAPI = {
   getStatus: () => api.get('/ai/status'),
 };
 
+export const agentAPI = {
+  getStatus: () => api.get('/agents/status'),
+  getTools: () => api.get('/agents/tools'),
+  runPipeline: (data) => api.post('/agents/run-pipeline', data),
+  chat: (data) => api.post('/agents/chat', data),
+};
+
 export default api;

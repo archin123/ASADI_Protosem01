@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Calendar, Sparkles, TrendingUp, Clock, BookOpen, Layers, 
-  Check, ArrowRight, RotateCw, AlertCircle, Bot, Copy, Lightbulb 
+  Check, ArrowRight, RotateCw, AlertCircle, Bot, Copy, Lightbulb, Cpu 
 } from 'lucide-react';
 import { RecommendationBadge, MediaTypeBadge } from './Badge';
-import { aiAPI } from '../../services/api';
+import { aiAPI, agentAPI } from '../../services/api';
 
 export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlanner }) {
   if (!isOpen || !postAnalysis) return null;
@@ -41,6 +41,10 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
   const [aiResult, setAiResult] = useState(null);
   const [copiedCaption, setCopiedCaption] = useState(false);
 
+  // LangChain Swarm state
+  const [swarmRunning, setSwarmRunning] = useState(false);
+  const [swarmSuccess, setSwarmSuccess] = useState(null);
+
   useEffect(() => {
     if (postAnalysis) {
       if (existingPlan?.plannedDate) {
@@ -54,6 +58,7 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
       setNotes(existingPlan?.notes || '');
       setAddedSuccess(false);
       setAiResult(null);
+      setSwarmSuccess(null);
     }
   }, [postAnalysis]);
 
@@ -85,6 +90,32 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
     navigator.clipboard.writeText(aiResult.modernizedCaption);
     setCopiedCaption(true);
     setTimeout(() => setCopiedCaption(false), 2000);
+  };
+
+  const handleRunSwarm = async () => {
+    setSwarmRunning(true);
+    setSwarmSuccess(null);
+    try {
+      const res = await agentAPI.runPipeline({
+        postId: post.originalId || post._id,
+        targetFormat: selectedFormat,
+        customNotes: notes,
+      });
+      if (res.data?.success) {
+        setSwarmSuccess(res.data);
+        if (res.data.aiCreative) {
+          setAiResult(res.data.aiCreative);
+        }
+        if (res.data.planItem?.plannedDate) {
+          setPlannedDate(new Date(res.data.planItem.plannedDate).toISOString().split('T')[0]);
+        }
+        setAddedSuccess(true);
+      }
+    } catch (err) {
+      console.error('Failed to run swarm from modal:', err);
+    } finally {
+      setSwarmRunning(false);
+    }
   };
 
   const handlePlanSubmit = async () => {
@@ -310,25 +341,55 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleGenerateAI}
-                disabled={aiGenerating}
-                className="py-2 px-3.5 rounded-xl bg-charcoal-800 hover:bg-lime-accent hover:text-charcoal-950 text-xs font-bold text-slate-200 border border-slate-700 hover:border-lime-bright flex items-center gap-1.5 transition-all shadow-sm"
-              >
-                {aiGenerating ? (
-                  <>
-                    <RotateCw className="w-3.5 h-3.5 animate-spin text-lime-accent" />
-                    Generating with Gemini...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5 text-lime-accent" />
-                    {aiResult ? 'Regenerate AI Hooks' : 'Generate AI Hooks & Script'}
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleGenerateAI}
+                  disabled={aiGenerating || swarmRunning}
+                  className="py-2 px-3 rounded-xl bg-charcoal-800 hover:bg-lime-accent hover:text-charcoal-950 text-xs font-bold text-slate-200 border border-slate-700 hover:border-lime-bright flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+                >
+                  {aiGenerating ? (
+                    <>
+                      <RotateCw className="w-3.5 h-3.5 animate-spin text-lime-accent" />
+                      Gemini...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-lime-accent" />
+                      {aiResult ? 'Regen Hooks' : 'AI Hooks'}
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRunSwarm}
+                  disabled={swarmRunning || aiGenerating}
+                  className="py-2 px-3.5 rounded-xl bg-lime-accent hover:bg-lime-bright text-charcoal-950 text-xs font-black tracking-wide flex items-center gap-1.5 transition-all shadow-glow-subtle disabled:opacity-50"
+                >
+                  {swarmRunning ? (
+                    <>
+                      <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                      Swarm Running...
+                    </>
+                  ) : (
+                    <>
+                      <Cpu className="w-3.5 h-3.5" />
+                      Deploy 4-Agent Swarm
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
+
+            {swarmSuccess && (
+              <div className="p-3 rounded-xl bg-lime-muted/60 border border-lime-500/40 text-xs text-lime-bright flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>
+                  <strong>LangChain Swarm Complete:</strong> Auditor, Strategist, Creative, and Planner synchronized!
+                </span>
+              </div>
+            )}
 
             {/* Generated AI Results */}
             {aiResult && (

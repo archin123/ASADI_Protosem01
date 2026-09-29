@@ -19,12 +19,15 @@
   "author": "Smart India Hackathon Team",
   "license": "MIT",
   "dependencies": {
+    "@langchain/core": "^1.2.13",
+    "@langchain/google-genai": "^2.3.2",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "csv-parser": "^3.2.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "langchain": "^1.5.14",
     "mongoose": "^8.9.5",
     "multer": "^1.4.5-lts.1"
   }

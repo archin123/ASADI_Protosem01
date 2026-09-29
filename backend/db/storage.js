@@ -81,6 +81,10 @@ export const UserRepository = {
 };
 
 export const PostRepository = {
+  async findAll(filter = {}, sort = { postDate: -1 }) {
+    return this.find(filter, sort);
+  },
+
   async find(filter = {}, sort = { postDate: -1 }) {
     if (!isMemoryFallback) {
       return await Post.find(filter).sort(sort);

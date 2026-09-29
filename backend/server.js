@@ -12,6 +12,7 @@ import recommendationRoutes from './routes/recommendationRoutes.js';
 import similarityRoutes from './routes/similarityRoutes.js';
 import plannerRoutes from './routes/plannerRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
+import agentRoutes from './routes/agentRoutes.js';
 
 dotenv.config();
 
@@ -45,7 +46,7 @@ app.get('/api/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     database: dbStatus,
     libraryPostCount: postCount,
-    aiEngine: 'Heuristic Explainable Recommendations + TF-IDF Vectorizer (Zero-cost pure JS NLP)',
+    aiEngine: 'LangChain.js Multi-Agent Swarm + Google Gemini AI + TF-IDF Vectorizer',
   });
 });
 
@@ -57,6 +58,7 @@ app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/similarity', similarityRoutes);
 app.use('/api/planner', plannerRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/agents', agentRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
