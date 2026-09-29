@@ -6,23 +6,53 @@
  * 2. LangChain Tools (8 registered tools)
  * 3. LLM Generation calls (Google Gemini AI)
  * 
- * Synchronizes LangChain & LangSmith environment variables and maintains
- * local trace visibility while streaming cloud telemetry to smith.langchain.com.
+ * Secure Backend-Only Key Management:
+ * The API key is read strictly from backend .env and is never transmitted
+ * to the frontend UI or client bundles.
  */
 
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import { LangChainTracer } from '@langchain/core/tracers/tracer_langchain';
 import { traceable, getCurrentRunTree } from 'langsmith/traceable';
 import { Client as LangSmithClient } from 'langsmith';
 
 dotenv.config();
 
-const apiKey = 
-  process.env.LANGCHAIN_API_KEY || 
-  process.env.LANGSMITH_API_KEY || 
-  '';
+/**
+ * Dynamically resolves LangSmith API key from process.env or reloads from .env
+ */
+function resolveApiKey() {
+  let key = process.env.LANGCHAIN_API_KEY || process.env.LANGSMITH_API_KEY || '';
+  if (key && key.trim().length > 10 && !key.includes('your_langsmith_api_key')) {
+    return key.trim();
+  }
 
-const hasValidApiKey = Boolean(apiKey && apiKey.trim().length > 10 && !apiKey.includes('your_langsmith_api_key'));
+  // Attempt fresh read from .env if present
+  try {
+    const candidatePaths = [
+      path.resolve(process.cwd(), '.env'),
+      path.resolve(process.cwd(), 'backend', '.env'),
+    ];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        const parsed = dotenv.parse(fs.readFileSync(p));
+        const fileKey = parsed.LANGCHAIN_API_KEY || parsed.LANGSMITH_API_KEY;
+        if (fileKey && fileKey.trim().length > 10 && !fileKey.includes('your_langsmith_api_key')) {
+          key = fileKey.trim();
+          process.env.LANGCHAIN_API_KEY = key;
+          process.env.LANGSMITH_API_KEY = key;
+          break;
+        }
+      }
+    }
+  } catch (err) {
+    // Non-fatal fallback
+  }
+
+  return key;
+}
 
 const endpoint = 
   process.env.LANGCHAIN_ENDPOINT || 
@@ -34,18 +64,19 @@ const projectName =
   process.env.LANGSMITH_PROJECT || 
   'content-recycler';
 
-// Cloud tracing is active when valid API key is present
-const cloudTracingActive = hasValidApiKey;
+// Ensure consistent process.env for LangChain and LangSmith runtimes
+const initialKey = resolveApiKey();
+const hasValidApiKey = Boolean(initialKey && initialKey.length > 10);
 
-process.env.LANGCHAIN_TRACING_V2 = cloudTracingActive ? 'true' : 'false';
-process.env.LANGSMITH_TRACING = cloudTracingActive ? 'true' : 'false';
+process.env.LANGCHAIN_TRACING_V2 = 'true';
+process.env.LANGSMITH_TRACING = 'true';
 process.env.LANGCHAIN_ENDPOINT = endpoint;
 process.env.LANGSMITH_ENDPOINT = endpoint;
 process.env.LANGCHAIN_PROJECT = projectName;
 process.env.LANGSMITH_PROJECT = projectName;
 if (hasValidApiKey) {
-  process.env.LANGCHAIN_API_KEY = apiKey;
-  process.env.LANGSMITH_API_KEY = apiKey;
+  process.env.LANGCHAIN_API_KEY = initialKey;
+  process.env.LANGSMITH_API_KEY = initialKey;
 }
 
 // In-memory trace buffer for developer visibility & UI inspection
@@ -91,20 +122,20 @@ export function getTraceById(traceId) {
 
 /**
  * Get current LangSmith configuration & health status
+ * NOTE: The API key is NEVER exposed or returned in this function!
  */
 export function getLangSmithStatus() {
-  const maskedKey = hasValidApiKey 
-    ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`
-    : 'Not configured (add LANGCHAIN_API_KEY in .env)';
+  const currentKey = resolveApiKey();
+  const isConfigured = Boolean(currentKey && currentKey.length > 10);
 
   return {
     tracingEnabled: true,
-    cloudSyncActive: hasValidApiKey,
-    endpoint: process.env.LANGCHAIN_ENDPOINT,
-    project: process.env.LANGCHAIN_PROJECT,
-    hasApiKey: hasValidApiKey,
-    apiKeyMasked: maskedKey,
-    cloudDashboardUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT}`,
+    cloudSyncActive: isConfigured,
+    endpoint: process.env.LANGCHAIN_ENDPOINT || 'https://api.smith.langchain.com',
+    project: process.env.LANGCHAIN_PROJECT || 'content-recycler',
+    hasApiKey: isConfigured,
+    keySource: isConfigured ? 'Securely loaded in backend (.env)' : 'Missing LANGCHAIN_API_KEY in .env',
+    cloudDashboardUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'content-recycler'}`,
     recentTracesCount: recentTraces.length,
     runtime: {
       sdk: 'langsmith + @langchain/core',
@@ -117,7 +148,9 @@ export function getLangSmithStatus() {
  * Create a LangChainTracer instance for tools or chain callbacks
  */
 export function getLangChainTracer() {
-  if (!hasValidApiKey) return null;
+  const currentKey = resolveApiKey();
+  if (!currentKey) return null;
+
   try {
     return new LangChainTracer({
       projectName: process.env.LANGCHAIN_PROJECT || 'content-recycler',

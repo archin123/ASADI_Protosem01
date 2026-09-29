@@ -1277,7 +1277,7 @@ How can our team assist your content recycling strategy today?`,
                   <span className={`w-2 h-2 rounded-full ${swarmStatus?.langsmith?.hasApiKey ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                   {swarmStatus?.langsmith?.hasApiKey ? 'Cloud Connected' : 'Local Tracing (Ready for Key)'}
                 </span>
-                <span className="text-[10px] text-slate-500 truncate block">{swarmStatus?.langsmith?.apiKeyMasked || 'LANGCHAIN_API_KEY in .env'}</span>
+                <span className="text-[10px] text-slate-500 truncate block">{swarmStatus?.langsmith?.keySource || 'Managed via backend/.env'}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-charcoal-950 border border-slate-800 space-y-1">
