@@ -2,7 +2,8 @@ import express from 'express';
 import { 
   runAutonomousPipeline, 
   chatWithAgents, 
-  getSwarmStatus 
+  getSwarmStatus,
+  judgePostOrDraft 
 } from '../agents/multiAgentSwarm.js';
 import { contentRecyclerTools } from '../agents/tools/contentTools.js';
 import { optionalAuthenticateToken } from '../middleware/auth.js';
@@ -86,6 +87,26 @@ router.post('/chat', optionalAuthenticateToken, async (req, res) => {
     return res.json(result);
   } catch (err) {
     console.error('[Agent Routes] Chat error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/agents/judge
+ * Direct invocation of the Judge Agent
+ */
+router.post('/judge', optionalAuthenticateToken, async (req, res) => {
+  try {
+    const { postId, caption, hook, targetFormat } = req.body;
+    const result = await judgePostOrDraft({
+      postId,
+      caption,
+      hook,
+      targetFormat: targetFormat || 'REEL',
+    });
+    return res.json(result);
+  } catch (err) {
+    console.error('[Agent Routes] Judge error:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 });

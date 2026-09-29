@@ -22,13 +22,18 @@ import {
   ChevronUp,
   Cpu,
   Clock,
-  Zap
+  Zap,
+  Scale,
+  ThumbsUp,
+  ThumbsDown,
+  Award,
+  Lightbulb
 } from 'lucide-react';
 import { agentAPI, postsAPI } from '../../services/api';
 import { RecommendationBadge, MediaTypeBadge } from '../common/Badge';
 
 export default function AgentsStudioView({ onNavigate, onOpenScoreModal }) {
-  const [activeTab, setActiveTab] = useState('pipeline'); // 'pipeline' | 'chat' | 'tools'
+  const [activeTab, setActiveTab] = useState('pipeline'); // 'pipeline' | 'judge' | 'chat' | 'tools'
   const [swarmStatus, setSwarmStatus] = useState(null);
   const [toolsList, setToolsList] = useState([]);
   const [posts, setPosts] = useState([]);
@@ -43,6 +48,15 @@ export default function AgentsStudioView({ onNavigate, onOpenScoreModal }) {
   const [pipelineResult, setPipelineResult] = useState(null);
   const [pipelineError, setPipelineError] = useState(null);
 
+  // Judge Agent Arena state
+  const [judgePostId, setJudgePostId] = useState('SYNTH_POST_001');
+  const [judgeCustomCaption, setJudgeCustomCaption] = useState('');
+  const [judgeHook, setJudgeHook] = useState('');
+  const [judgeFormat, setJudgeFormat] = useState('REEL');
+  const [judgeLoading, setJudgeLoading] = useState(false);
+  const [judgeResult, setJudgeResult] = useState(null);
+  const [judgeError, setJudgeError] = useState(null);
+
   // Chat state
   const [chatMessages, setChatMessages] = useState([
     {
@@ -51,14 +65,15 @@ export default function AgentsStudioView({ onNavigate, onOpenScoreModal }) {
 
 I am your autonomous **Instagram Content Recycling Agent Team** powered by **LangChain.js** and **Google Gemini AI**.
 
-Our active swarm consists of 4 specialized agents:
+Our active swarm consists of 5 specialized agents:
 * 🔍 **Auditor Agent**: Analyzes historical metrics, Z-Scores, and decay curves.
 * 🧠 **Strategist Agent**: Evaluates format transitions and runs TF-IDF cannibalization checks.
 * 🎨 **Creative Agent**: Crafts 3-second viral hooks and 2026 captions via Gemini.
-* 📅 **Planner Agent**: Schedules content into your editorial calendar.
+* ⚖️ **Judge Agent**: Strict editorial rubric scoring (Hook retention, evergreen value) and formal production verdicts.
+* 📅 **Planner Agent**: Schedules approved content into your editorial calendar.
 
 How can our team assist your content recycling strategy today?`,
-      thoughts: ['Swarm initialized with 4 autonomous agents and 7 LangChain tools.'],
+      thoughts: ['Swarm initialized with 5 autonomous agents and 8 LangChain tools.'],
       tools: [],
     }
   ]);
@@ -98,7 +113,7 @@ How can our team assist your content recycling strategy today?`,
     }
   };
 
-  // Run the 4-agent autonomous pipeline
+  // Run the 5-agent autonomous pipeline
   const handleRunPipeline = async () => {
     setPipelineRunning(true);
     setPipelineError(null);
@@ -122,6 +137,32 @@ How can our team assist your content recycling strategy today?`,
       setPipelineError(err.response?.data?.message || err.message || 'Execution error');
     } finally {
       setPipelineRunning(false);
+    }
+  };
+
+  // Run the standalone Judge Agent
+  const handleRunJudge = async () => {
+    setJudgeLoading(true);
+    setJudgeError(null);
+    try {
+      const selectedPost = posts.find(p => (p.originalId || p._id) === judgePostId);
+      const res = await agentAPI.judge({
+        postId: judgePostId !== 'custom' ? judgePostId : undefined,
+        caption: judgePostId === 'custom' ? judgeCustomCaption : (selectedPost?.caption || judgeCustomCaption),
+        hook: judgeHook,
+        targetFormat: judgeFormat,
+      });
+
+      if (res.data?.success) {
+        setJudgeResult(res.data);
+      } else {
+        setJudgeError(res.data?.message || 'Judge evaluation failed.');
+      }
+    } catch (err) {
+      console.error('Judge error:', err);
+      setJudgeError(err.response?.data?.message || err.message || 'Evaluation error');
+    } finally {
+      setJudgeLoading(false);
     }
   };
 
@@ -172,6 +213,7 @@ How can our team assist your content recycling strategy today?`,
     auditor: Search,
     strategist: Brain,
     creative: Sparkles,
+    judge: Scale,
     planner: Calendar,
   };
 
@@ -197,66 +239,84 @@ How can our team assist your content recycling strategy today?`,
             <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight flex items-center gap-3">
               AI Agents Studio
               <span className="text-xs font-mono font-normal text-slate-400 bg-charcoal-800 px-2 py-0.5 rounded-lg border border-slate-700">
-                Autonomous Recycling Swarm
+                Autonomous Swarm + Judge Agent
               </span>
             </h1>
             <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-              Four autonomous agents working in orchestrated LangChain pipeline: Performance Auditing, TF-IDF Cannibalization Checking, Viral Hook Generation, and Calendar Planning.
+              Five autonomous agents working in orchestrated LangChain pipeline: Performance Auditing, TF-IDF Cannibalization Checking, Viral Hook Generation, Editorial Quality Judging, and Calendar Planning.
             </p>
           </div>
 
           {/* Quick Roster Indicator */}
           <div className="flex items-center gap-2 bg-charcoal-950/80 p-3 rounded-2xl border border-slate-800 text-xs">
             <div className="flex -space-x-2 overflow-hidden">
-              <div className="inline-block h-8 w-8 rounded-full ring-2 ring-charcoal-900 bg-lime-muted text-lime-bright flex items-center justify-center font-bold text-[10px]">
+              <div className="inline-block h-8 w-8 rounded-full ring-2 ring-charcoal-900 bg-lime-muted text-lime-bright flex items-center justify-center font-bold text-[10px]" title="Auditor">
                 AUD
               </div>
-              <div className="inline-block h-8 w-8 rounded-full ring-2 ring-charcoal-900 bg-cyan-950 text-cyan-300 flex items-center justify-center font-bold text-[10px]">
+              <div className="inline-block h-8 w-8 rounded-full ring-2 ring-charcoal-900 bg-cyan-950 text-cyan-300 flex items-center justify-center font-bold text-[10px]" title="Strategist">
                 STR
               </div>
-              <div className="inline-block h-8 w-8 rounded-full ring-2 ring-charcoal-900 bg-amber-950 text-amber-300 flex items-center justify-center font-bold text-[10px]">
+              <div className="inline-block h-8 w-8 rounded-full ring-2 ring-charcoal-900 bg-amber-950 text-amber-300 flex items-center justify-center font-bold text-[10px]" title="Creative">
                 CRE
               </div>
-              <div className="inline-block h-8 w-8 rounded-full ring-2 ring-charcoal-900 bg-emerald-950 text-emerald-300 flex items-center justify-center font-bold text-[10px]">
+              <div className="inline-block h-8 w-8 rounded-full ring-2 ring-charcoal-900 bg-purple-950 text-purple-300 flex items-center justify-center font-bold text-[10px]" title="Judge">
+                JDG
+              </div>
+              <div className="inline-block h-8 w-8 rounded-full ring-2 ring-charcoal-900 bg-emerald-950 text-emerald-300 flex items-center justify-center font-bold text-[10px]" title="Planner">
                 PLN
               </div>
             </div>
             <div className="ml-2 pr-2">
-              <p className="font-bold text-slate-200">4 Active Agents</p>
+              <p className="font-bold text-slate-200">5 Active Agents</p>
               <p className="text-[11px] text-lime-bright flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-lime-bright animate-pulse" />
-                7 LangChain Tools Ready
+                8 LangChain Tools Ready
               </p>
             </div>
           </div>
         </div>
 
-        {/* 4 Agent Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+        {/* 5 Agent Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3.5 mt-6 pt-6 border-t border-slate-800/80">
           {(swarmStatus?.registeredAgents || [
             { id: 'auditor', name: 'Auditor Agent', role: 'Performance & Decay Analyst', capabilities: ['Z-Scores', 'Evergreen index'] },
             { id: 'strategist', name: 'Strategist Agent', role: 'Retention & Cannibalization', capabilities: ['TF-IDF Overlap', 'Format mapping'] },
             { id: 'creative', name: 'Creative Agent', role: 'Viral Hook & 2026 Scriptwriter', capabilities: ['3-Sec Hooks', 'Gemini AI'] },
+            { id: 'judge', name: 'Judge Agent', role: 'Chief Quality & Editorial Judge', capabilities: ['Rubric Scoring', 'Pass/Revise Verdict'] },
             { id: 'planner', name: 'Planner Agent', role: 'Calendar Editorial Scheduler', capabilities: ['Slot optimization', 'Planner sync'] },
           ]).map((agent) => {
             const Icon = agentIcons[agent.id] || Bot;
+            const isJudge = agent.id === 'judge';
             return (
               <div 
                 key={agent.id}
-                className="p-4 rounded-2xl bg-charcoal-850/80 border border-slate-800 hover:border-lime-500/40 transition-all group"
+                className={`p-3.5 rounded-2xl bg-charcoal-850/80 border transition-all group ${
+                  isJudge ? 'border-purple-500/40 bg-purple-950/20' : 'border-slate-800 hover:border-lime-500/40'
+                }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className="w-8 h-8 rounded-xl bg-charcoal-800 border border-slate-700 flex items-center justify-center text-lime-bright group-hover:scale-105 transition-transform">
+                  <div className={`w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform ${
+                    isJudge 
+                      ? 'bg-purple-900/60 text-purple-300 border-purple-500/40' 
+                      : 'bg-charcoal-800 border-slate-700 text-lime-bright'
+                  }`}>
                     <Icon className="w-4 h-4" />
                   </div>
-                  <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-lime-muted text-lime-bright border border-lime-500/20">
+                  <span className={`text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border ${
+                    isJudge
+                      ? 'bg-purple-900/40 text-purple-300 border-purple-500/30'
+                      : 'bg-lime-muted text-lime-bright border-lime-500/20'
+                  }`}>
                     Online
                   </span>
                 </div>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">{agent.name}</h3>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1">
+                  {agent.name}
+                  {isJudge && <span className="text-[8px] bg-purple-500/30 text-purple-200 px-1 rounded">New</span>}
+                </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{agent.role}</p>
                 <div className="flex flex-wrap gap-1 mt-2.5">
-                  {agent.capabilities?.map((c, i) => (
+                  {agent.capabilities?.slice(0, 2).map((c, i) => (
                     <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-charcoal-900 text-slate-300 border border-slate-800">
                       {c}
                     </span>
@@ -269,7 +329,7 @@ How can our team assist your content recycling strategy today?`,
       </div>
 
       {/* Navigation Mode Switcher */}
-      <div className="flex items-center gap-2 p-1.5 bg-charcoal-900 border border-slate-800 rounded-2xl w-fit">
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-charcoal-900 border border-slate-800 rounded-2xl w-fit">
         <button
           onClick={() => setActiveTab('pipeline')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -280,6 +340,18 @@ How can our team assist your content recycling strategy today?`,
         >
           <Play className="w-3.5 h-3.5" />
           Autonomous Swarm Pipeline
+        </button>
+
+        <button
+          onClick={() => setActiveTab('judge')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'judge'
+              ? 'bg-purple-400 text-charcoal-950 shadow-glow-subtle font-black'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Scale className="w-3.5 h-3.5 text-purple-400 group-hover:text-white" />
+          Judge & Critique Arena
         </button>
 
         <button
@@ -303,7 +375,7 @@ How can our team assist your content recycling strategy today?`,
           }`}
         >
           <Wrench className="w-3.5 h-3.5" />
-          LangChain Tools ({toolsList.length || 7})
+          LangChain Tools ({toolsList.length || 8})
         </button>
       </div>
 
@@ -317,10 +389,10 @@ How can our team assist your content recycling strategy today?`,
               <div>
                 <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-lime-bright" />
-                  Swarm Execution Controls
+                  5-Agent Swarm Pipeline
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Configure target post and let all 4 agents coordinate autonomously.
+                  Executes Auditor, Strategist, Creative, <strong>Judge</strong>, and Planner agents in sequence.
                 </p>
               </div>
 
@@ -405,12 +477,12 @@ How can our team assist your content recycling strategy today?`,
                 {pipelineRunning ? (
                   <>
                     <RotateCw className="w-4 h-4 animate-spin" />
-                    Executing LangChain Swarm...
+                    Executing 5-Agent Swarm...
                   </>
                 ) : (
                   <>
                     <Play className="w-4 h-4 fill-charcoal-950" />
-                    Launch Autonomous Multi-Agent Swarm
+                    Launch 5-Agent Swarm Pipeline
                   </>
                 )}
               </button>
@@ -432,9 +504,9 @@ How can our team assist your content recycling strategy today?`,
                   <Bot className="w-8 h-8 text-lime-bright animate-bounce-slow" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Autonomous Swarm Idle</h3>
+                  <h3 className="text-base font-bold text-white">Autonomous Swarm Ready</h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                    Select a target post or leave on auto-discover, then click <strong>"Launch Autonomous Multi-Agent Swarm"</strong> to watch the 4 agents collaborate in real-time.
+                    Select a target post or leave on auto-discover, then click <strong>"Launch 5-Agent Swarm Pipeline"</strong>. The Judge Agent will review and score the draft before calendar commitment.
                   </p>
                 </div>
               </div>
@@ -446,11 +518,12 @@ How can our team assist your content recycling strategy today?`,
                   <RotateCw className="w-5 h-5 text-lime-bright animate-spin" />
                   <div>
                     <h3 className="text-sm font-bold text-white">Multi-Agent Swarm In Progress</h3>
-                    <p className="text-xs text-slate-400">LangChain agents are reasoning and invoking tools...</p>
+                    <p className="text-xs text-slate-400">Auditor, Strategist, Creative, Judge, and Planner are collaborating...</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
+                  <div className="h-10 bg-charcoal-800 rounded-xl" />
                   <div className="h-10 bg-charcoal-800 rounded-xl" />
                   <div className="h-10 bg-charcoal-800 rounded-xl" />
                   <div className="h-10 bg-charcoal-800 rounded-xl" />
@@ -476,7 +549,7 @@ How can our team assist your content recycling strategy today?`,
                           </span>
                         </h3>
                         <p className="text-xs text-slate-400">
-                          Recycled asset committed to Content Planner for <strong>{pipelineResult.plannedDate}</strong> as <strong>{pipelineResult.targetFormat}</strong>
+                          Recycled asset approved by <strong>Judge Agent</strong> & scheduled for <strong>{pipelineResult.plannedDate}</strong>
                         </p>
                       </div>
                     </div>
@@ -490,7 +563,7 @@ How can our team assist your content recycling strategy today?`,
                     </button>
                   </div>
 
-                  {/* Summary Metric Row */}
+                  {/* Summary Metric Row with Judge Verdict */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                     <div className="p-3 rounded-xl bg-charcoal-800/80 border border-slate-800">
                       <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Post ID</span>
@@ -501,20 +574,38 @@ How can our team assist your content recycling strategy today?`,
                       <span className="font-bold text-lime-bright text-xs">{pipelineResult.targetFormat}</span>
                     </div>
                     <div className="p-3 rounded-xl bg-charcoal-800/80 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cannibalization</span>
-                      <span className="font-bold text-emerald-400 text-xs">{pipelineResult.summary?.cannibalizationStatus}</span>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Judge's Verdict</span>
+                      <span className={`font-bold text-xs flex items-center gap-1 ${
+                        pipelineResult.summary?.judgeVerdict === 'APPROVED' ? 'text-emerald-400' : 'text-amber-400'
+                      }`}>
+                        <Scale className="w-3 h-3" />
+                        {pipelineResult.summary?.judgeVerdict || 'APPROVED'} ({pipelineResult.summary?.qualityIndex || 85}/100)
+                      </span>
                     </div>
                     <div className="p-3 rounded-xl bg-charcoal-800/80 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">AI Model</span>
-                      <span className="font-mono text-cyan-300 text-[11px]">{pipelineResult.aiCreative?.model || 'Gemini 3.5'}</span>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cannibalization</span>
+                      <span className="font-bold text-cyan-300 text-xs">{pipelineResult.summary?.cannibalizationStatus}</span>
                     </div>
                   </div>
+
+                  {/* Judge Remarks Card */}
+                  {pipelineResult.summary?.judgeRemarks && (
+                    <div className="p-3.5 rounded-2xl bg-purple-950/20 border border-purple-500/30 text-xs space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+                        <Scale className="w-3.5 h-3.5" />
+                        Judge Agent Critique:
+                      </span>
+                      <p className="text-slate-300 text-xs italic">
+                        "{pipelineResult.summary.judgeRemarks}"
+                      </p>
+                    </div>
+                  )}
 
                   {/* Primary Hook & Modernized Caption */}
                   <div className="p-4 rounded-2xl bg-charcoal-950 border border-slate-800 space-y-3">
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-lime-bright">
-                        Primary 3-Second Viral Hook:
+                        Approved 3-Second Viral Hook:
                       </span>
                       <p className="text-xs text-white font-semibold mt-0.5">
                         "{pipelineResult.summary?.primaryViralHook}"
@@ -552,35 +643,47 @@ How can our team assist your content recycling strategy today?`,
                   </h4>
 
                   <div className="space-y-3">
-                    {pipelineResult.executionTrace?.map((step, idx) => (
-                      <div 
-                        key={idx}
-                        className="p-4 rounded-2xl bg-charcoal-900 border border-slate-800 text-xs space-y-2 hover:border-slate-700 transition-all"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-lime-muted text-lime-bright font-mono font-bold text-[10px] flex items-center justify-center border border-lime-500/30">
-                              {step.step}
-                            </span>
-                            <span className="font-bold text-white uppercase tracking-wider text-[11px]">
-                              {step.agent}
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              • {step.role}
+                    {pipelineResult.executionTrace?.map((step, idx) => {
+                      const isJudge = step.agent === 'Judge Agent';
+                      return (
+                        <div 
+                          key={idx}
+                          className={`p-4 rounded-2xl border text-xs space-y-2 transition-all ${
+                            isJudge 
+                              ? 'bg-purple-950/20 border-purple-500/40 shadow-glow-subtle' 
+                              : 'bg-charcoal-900 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-5 h-5 rounded-full font-mono font-bold text-[10px] flex items-center justify-center border ${
+                                isJudge 
+                                  ? 'bg-purple-900 text-purple-200 border-purple-500/40' 
+                                  : 'bg-lime-muted text-lime-bright border-lime-500/30'
+                              }`}>
+                                {step.step}
+                              </span>
+                              <span className="font-bold text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                                {step.agent}
+                                {isJudge && <Scale className="w-3 h-3 text-purple-300" />}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                • {step.role}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono text-lime-bright bg-charcoal-950 px-2 py-0.5 rounded border border-slate-800">
+                              Tool: {step.action}
                             </span>
                           </div>
-                          <span className="text-[10px] font-mono text-lime-bright bg-charcoal-950 px-2 py-0.5 rounded border border-slate-800">
-                            Tool: {step.action}
-                          </span>
-                        </div>
 
-                        {/* Agent Thought */}
-                        <div className="p-2.5 rounded-xl bg-charcoal-950/70 border border-slate-850 text-slate-300 text-[11px] leading-relaxed">
-                          <strong className="text-slate-400">Thought: </strong>
-                          {step.thought}
+                          {/* Agent Thought */}
+                          <div className="p-2.5 rounded-xl bg-charcoal-950/70 border border-slate-850 text-slate-300 text-[11px] leading-relaxed">
+                            <strong className="text-slate-400">Thought: </strong>
+                            {step.thought}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -589,7 +692,278 @@ How can our team assist your content recycling strategy today?`,
         </div>
       )}
 
-      {/* TAB 2: AGENT COPILOT CHAT */}
+      {/* TAB 2: JUDGE & CRITIQUE ARENA */}
+      {activeTab === 'judge' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Judge Input Column */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="p-6 rounded-3xl bg-charcoal-900 border border-purple-500/30 space-y-5 shadow-card">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-900/50 text-purple-300 border border-purple-500/30 flex items-center justify-center">
+                  <Scale className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                    Judge & Editorial Critique Arena
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Submit any post or hook to the Judge Agent for harsh rubric grading.
+                  </p>
+                </div>
+              </div>
+
+              {/* Post Selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Select Post to Judge</label>
+                <select
+                  value={judgePostId}
+                  onChange={(e) => setJudgePostId(e.target.value)}
+                  className="w-full bg-charcoal-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-purple-400"
+                >
+                  <option value="custom">✍️ Evaluate Custom Draft / Text Below</option>
+                  {posts.map((p) => (
+                    <option key={p.originalId || p._id} value={p.originalId || p._id}>
+                      [{p.originalId || p._id}] ({p.mediaType}) - {p.caption?.slice(0, 45)}...
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Custom Caption textarea if custom selected */}
+              {judgePostId === 'custom' && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Draft Caption Copy</label>
+                  <textarea
+                    value={judgeCustomCaption}
+                    onChange={(e) => setJudgeCustomCaption(e.target.value)}
+                    placeholder="Enter the caption draft to critique..."
+                    rows={3}
+                    className="w-full bg-charcoal-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-400 resize-none"
+                  />
+                </div>
+              )}
+
+              {/* Proposed Hook */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Proposed 3-Second Opening Hook</label>
+                <input
+                  type="text"
+                  value={judgeHook}
+                  onChange={(e) => setJudgeHook(e.target.value)}
+                  placeholder="e.g. Stop writing nested callbacks in 2026..."
+                  className="w-full bg-charcoal-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-400"
+                />
+              </div>
+
+              {/* Target Format */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Evaluation Target Format</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {['REEL', 'CAROUSEL', 'IMAGE', 'STORY'].map((fmt) => (
+                    <button
+                      key={fmt}
+                      type="button"
+                      onClick={() => setJudgeFormat(fmt)}
+                      className={`py-2 px-2 rounded-xl text-[11px] font-bold border transition-all text-center ${
+                        judgeFormat === fmt
+                          ? 'bg-purple-900/60 text-purple-200 border-purple-500/50 shadow-glow-subtle'
+                          : 'bg-charcoal-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      {fmt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit CTA */}
+              <button
+                type="button"
+                onClick={handleRunJudge}
+                disabled={judgeLoading}
+                className="w-full py-3 px-4 rounded-2xl bg-purple-500 hover:bg-purple-400 text-charcoal-950 text-xs font-black tracking-wider uppercase flex items-center justify-center gap-2 transition-all shadow-glow-subtle disabled:opacity-50"
+              >
+                {judgeLoading ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Judge Agent Evaluating...
+                  </>
+                ) : (
+                  <>
+                    <Scale className="w-4 h-4" />
+                    Deliver Editorial Verdict
+                  </>
+                )}
+              </button>
+
+              {judgeError && (
+                <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/30 text-xs text-red-300 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                  <span>{judgeError}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Judge Output Column */}
+          <div className="lg:col-span-7 space-y-6">
+            {!judgeResult && !judgeLoading && (
+              <div className="p-12 rounded-3xl bg-charcoal-900 border border-slate-800 text-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-charcoal-800 border border-slate-700 flex items-center justify-center text-slate-400 mx-auto">
+                  <Scale className="w-8 h-8 text-purple-400 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Judge Agent Ready</h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                    Select a post or enter custom hook copy, then click <strong>"Deliver Editorial Verdict"</strong> to generate a multi-point critique and official quality pass/revision scorecard.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {judgeLoading && (
+              <div className="p-8 rounded-3xl bg-charcoal-900 border border-purple-500/30 space-y-6 animate-pulse">
+                <div className="flex items-center gap-3">
+                  <RotateCw className="w-5 h-5 text-purple-400 animate-spin" />
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Judge Agent Deliberating</h3>
+                    <p className="text-xs text-slate-400">Scoring hook retention, evergreen durability, and viral shareability...</p>
+                  </div>
+                </div>
+                <div className="h-32 bg-charcoal-800 rounded-2xl" />
+              </div>
+            )}
+
+            {judgeResult && (
+              <div className="p-6 rounded-3xl bg-charcoal-900 border border-purple-500/40 space-y-6 shadow-card animate-in fade-in duration-300">
+                {/* Official Verdict Header */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                  <div>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-purple-300 font-bold block mb-1">
+                      Official Editorial Scorecard
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-xl text-xs font-black tracking-wider uppercase border flex items-center gap-1.5 ${
+                        judgeResult.evaluation?.verdict === 'APPROVED'
+                          ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40 shadow-glow-subtle'
+                          : (judgeResult.evaluation?.verdict === 'NEEDS_REVISION'
+                            ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+                            : 'bg-red-950/60 text-red-300 border-red-500/40')
+                      }`}>
+                        {judgeResult.evaluation?.verdict === 'APPROVED' && <ThumbsUp className="w-3.5 h-3.5" />}
+                        {judgeResult.evaluation?.verdict === 'NEEDS_REVISION' && <AlertTriangle className="w-3.5 h-3.5" />}
+                        {judgeResult.evaluation?.verdict === 'REJECTED' && <ThumbsDown className="w-3.5 h-3.5" />}
+                        {judgeResult.evaluation?.verdict || 'APPROVED'}
+                      </span>
+
+                      <span className="text-xs text-slate-400">
+                        Target: <strong className="text-white">{judgeResult.targetFormat}</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Quality Index Circle */}
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Quality Index</span>
+                    <span className="text-2xl font-black text-purple-300 font-mono">
+                      {judgeResult.evaluation?.scores?.compositeScore || 85}
+                      <span className="text-xs text-slate-500">/100</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4 Rubric Metric Bars */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {[
+                    { label: 'Hook Retention (First 3s)', score: judgeResult.evaluation?.scores?.hookRetention || 82, weight: '35%' },
+                    { label: 'Evergreen Durability', score: judgeResult.evaluation?.scores?.evergreenDurability || 90, weight: '25%' },
+                    { label: 'Viral Shareability & Saves', score: judgeResult.evaluation?.scores?.viralShareability || 80, weight: '25%' },
+                    { label: 'Format Optimization', score: judgeResult.evaluation?.scores?.formatOptimization || 85, weight: '15%' },
+                  ].map((rubric, idx) => (
+                    <div key={idx} className="p-3 rounded-2xl bg-charcoal-950 border border-slate-800 space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-300 font-medium">{rubric.label}</span>
+                        <span className="font-mono font-bold text-white">{rubric.score}%</span>
+                      </div>
+                      <div className="w-full bg-charcoal-800 h-2 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-purple-400 h-full rounded-full transition-all duration-500" 
+                          style={{ width: `${rubric.score}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] text-slate-500 font-mono block text-right">Rubric Weight: {rubric.weight}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Judge Remarks */}
+                <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5" />
+                    Judge's Editorial Deliberation:
+                  </span>
+                  <p className="text-xs text-slate-200 italic leading-relaxed">
+                    "{judgeResult.evaluation?.judgeRemarks}"
+                  </p>
+                </div>
+
+                {/* Strengths & Weaknesses */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 rounded-2xl bg-charcoal-950 border border-slate-800 space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5" />
+                      Key Strengths
+                    </span>
+                    <ul className="space-y-1 text-slate-300">
+                      {judgeResult.evaluation?.strengths?.map((s, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <span className="text-emerald-400 mt-0.5">•</span>
+                          <span>{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-charcoal-950 border border-slate-800 space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Areas for Polish
+                    </span>
+                    <ul className="space-y-1 text-slate-300">
+                      {judgeResult.evaluation?.weaknesses?.map((w, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <span className="text-amber-400 mt-0.5">•</span>
+                          <span>{w}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Recommended Action CTA */}
+                {judgeResult.evaluation?.recommendedAction && (
+                  <div className="p-3.5 rounded-2xl bg-charcoal-950 border border-slate-800 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Recommended Action:</span>
+                      <p className="text-slate-200 font-medium">{judgeResult.evaluation.recommendedAction}</p>
+                    </div>
+                    <button
+                      onClick={() => onNavigate && onNavigate('planner')}
+                      className="px-3 py-1.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-charcoal-950 font-bold text-xs transition-all flex items-center gap-1"
+                    >
+                      <span>Proceed to Planner</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: AGENT COPILOT CHAT */}
       {activeTab === 'chat' && (
         <div className="p-6 rounded-3xl bg-charcoal-900 border border-slate-800 space-y-5">
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
@@ -602,7 +976,7 @@ How can our team assist your content recycling strategy today?`,
                   Interactive LangChain Agent Copilot
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Ask open-ended questions about your library, fatigue risks, viral hooks, or scheduling.
+                  Ask open-ended questions about your library, fatigue risks, viral hooks, judge critique, or scheduling.
                 </p>
               </div>
             </div>
@@ -616,6 +990,7 @@ How can our team assist your content recycling strategy today?`,
           {/* Quick Prompt Suggestions */}
           <div className="flex flex-wrap gap-2 pt-1">
             {[
+              'Judge post SYNTH_POST_001 and deliver official verdict',
               'Audit post SYNTH_POST_001 and show explainability score',
               'What are my top 3 evergreen posts to recycle?',
               'Check if writing about JavaScript Event Loop causes cannibalization',
@@ -695,7 +1070,7 @@ How can our team assist your content recycling strategy today?`,
               type="text"
               value={inputMsg}
               onChange={(e) => setInputMsg(e.target.value)}
-              placeholder="Ask the LangChain Swarm (e.g. 'Audit SYNTH_POST_001 or find evergreen posts')..."
+              placeholder="Ask the LangChain Swarm (e.g. 'Judge SYNTH_POST_001 or find evergreen posts')..."
               className="flex-1 bg-charcoal-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-bright"
             />
             <button
@@ -710,13 +1085,13 @@ How can our team assist your content recycling strategy today?`,
         </div>
       )}
 
-      {/* TAB 3: LANGCHAIN TOOLS REGISTRY */}
+      {/* TAB 4: LANGCHAIN TOOLS REGISTRY */}
       {activeTab === 'tools' && (
         <div className="p-6 rounded-3xl bg-charcoal-900 border border-slate-800 space-y-6">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
               <Wrench className="w-4 h-4 text-lime-bright" />
-              Registered LangChain Tools ({toolsList.length || 7})
+              Registered LangChain Tools ({toolsList.length || 8})
             </h3>
             <p className="text-xs text-slate-400 mt-1">
               All tools are implemented using <code>@langchain/core/tools</code> with strict Zod parameter validation schemas.

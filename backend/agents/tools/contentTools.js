@@ -15,7 +15,8 @@ import {
 } from '../../services/textSimilarity.js';
 import { 
   generateHooksAndRewrite, 
-  generateClusterScript 
+  generateClusterScript,
+  judgeContentQuality
 } from '../../services/geminiService.js';
 
 /**
@@ -397,6 +398,65 @@ export const synthesizeCarouselTool = tool(
   }
 );
 
+/**
+ * Tool 8: Judge & Critique Content Quality (The Judge Agent)
+ */
+export const judgeContentQualityTool = tool(
+  async ({ postId, caption, hook, targetFormat = 'REEL' }) => {
+    try {
+      let resolvedCaption = caption;
+      let metrics = {};
+      let dormantDays = 0;
+
+      if (postId) {
+        const post = await PostRepository.findById(postId);
+        if (post) {
+          if (!resolvedCaption) resolvedCaption = post.caption;
+          metrics = {
+            reach: post.reach,
+            saves: post.saves,
+            likes: post.likes,
+            comments: post.comments,
+          };
+          const ageMs = Date.now() - new Date(post.postDate).getTime();
+          dormantDays = Math.max(0, Math.floor(ageMs / (1000 * 60 * 60 * 24)));
+        }
+      }
+
+      if (!resolvedCaption) {
+        return JSON.stringify({ error: 'Please provide either a valid postId or caption text to judge.' });
+      }
+
+      const evaluation = await judgeContentQuality({
+        caption: resolvedCaption,
+        hook: hook || '',
+        targetFormat: targetFormat || 'REEL',
+        metrics,
+        dormantDays,
+      });
+
+      return JSON.stringify({
+        success: evaluation.success,
+        model: evaluation.source,
+        targetFormat,
+        evaluation: evaluation.data,
+      });
+    } catch (err) {
+      return JSON.stringify({ error: err.message });
+    }
+  },
+  {
+    name: 'judgeContentQualityTool',
+    description: 'Acts as the Editorial Chief Judge to rigorously critique and score an Instagram post or draft on Hook Retention, Evergreen Value, Shareability, and Viral Feasibility.',
+    schema: z.object({
+      postId: z.string().optional().describe('Optional post ID to pull historical metrics from'),
+      caption: z.string().optional().describe('Caption text to evaluate'),
+      hook: z.string().optional().describe('Proposed 3-second viral hook to evaluate'),
+      targetFormat: z.enum(['REEL', 'CAROUSEL', 'IMAGE', 'STORY']).optional().describe('Target media format'),
+    }),
+  }
+);
+
 // All tools exported in a registry array for agents
 export const contentRecyclerTools = [
   fetchLibraryOverviewTool,
@@ -406,4 +466,5 @@ export const contentRecyclerTools = [
   schedulePostToPlannerTool,
   generateViralHooksTool,
   synthesizeCarouselTool,
+  judgeContentQualityTool,
 ];

@@ -83,6 +83,7 @@ export const agentAPI = {
   getTools: () => api.get('/agents/tools'),
   runPipeline: (data) => api.post('/agents/run-pipeline', data),
   chat: (data) => api.post('/agents/chat', data),
+  judge: (data) => api.post('/agents/judge', data),
 };
 
 export default api;
