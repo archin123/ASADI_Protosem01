@@ -72,4 +72,10 @@ export const systemAPI = {
   healthCheck: () => api.get('/health'),
 };
 
+export const aiAPI = {
+  generateHooks: (data) => api.post('/ai/generate-hooks', data),
+  synthesizeCluster: (data) => api.post('/ai/synthesize-cluster', data),
+  getStatus: () => api.get('/ai/status'),
+};
+
 export default api;

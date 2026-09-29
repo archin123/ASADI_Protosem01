@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Sparkles, TrendingUp, Clock, BookOpen, Layers, Check, ArrowRight, RotateCw, AlertCircle } from 'lucide-react';
+import { 
+  X, Calendar, Sparkles, TrendingUp, Clock, BookOpen, Layers, 
+  Check, ArrowRight, RotateCw, AlertCircle, Bot, Copy, Lightbulb 
+} from 'lucide-react';
 import { RecommendationBadge, MediaTypeBadge } from './Badge';
+import { aiAPI } from '../../services/api';
 
 export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlanner }) {
   if (!isOpen || !postAnalysis) return null;
@@ -32,6 +36,11 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
   const [isAdding, setIsAdding] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
 
+  // Gemini AI state
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState(null);
+  const [copiedCaption, setCopiedCaption] = useState(false);
+
   useEffect(() => {
     if (postAnalysis) {
       if (existingPlan?.plannedDate) {
@@ -44,8 +53,39 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
       setSelectedFormat(existingPlan?.targetFormat || targetFormat || 'REEL');
       setNotes(existingPlan?.notes || '');
       setAddedSuccess(false);
+      setAiResult(null);
     }
   }, [postAnalysis]);
+
+  const handleGenerateAI = async () => {
+    setAiGenerating(true);
+    try {
+      const res = await aiAPI.generateHooks({
+        caption: post.caption,
+        recommendationType,
+        targetFormat: selectedFormat,
+        stats: { reach: post.reach, saves: post.saves, calculatedER: metrics?.calculatedER },
+      });
+      if (res.data?.data) {
+        setAiResult(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to generate AI hooks:', err);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleApplyHook = (hookText) => {
+    setNotes(hookText);
+  };
+
+  const handleCopyCaption = () => {
+    if (!aiResult?.modernizedCaption) return;
+    navigator.clipboard.writeText(aiResult.modernizedCaption);
+    setCopiedCaption(true);
+    setTimeout(() => setCopiedCaption(false), 2000);
+  };
 
   const handlePlanSubmit = async () => {
     setIsAdding(true);
@@ -248,6 +288,99 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
                 {explainability?.tacticalAdvice}
               </p>
             </div>
+          </div>
+
+          {/* Google Gemini AI Copilot Section */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-charcoal-850 to-charcoal-900 border border-lime-500/30 shadow-glow-subtle space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-lime-muted text-lime-bright border border-lime-500/30">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                    Google Gemini AI Copilot
+                    <span className="text-[9px] font-mono text-lime-bright bg-lime-muted px-1.5 py-0.2 rounded border border-lime-500/30">
+                      Active
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Generate viral 2026 hooks and modern carousel scripts for this post
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerateAI}
+                disabled={aiGenerating}
+                className="py-2 px-3.5 rounded-xl bg-charcoal-800 hover:bg-lime-accent hover:text-charcoal-950 text-xs font-bold text-slate-200 border border-slate-700 hover:border-lime-bright flex items-center gap-1.5 transition-all shadow-sm"
+              >
+                {aiGenerating ? (
+                  <>
+                    <RotateCw className="w-3.5 h-3.5 animate-spin text-lime-accent" />
+                    Generating with Gemini...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-lime-accent" />
+                    {aiResult ? 'Regenerate AI Hooks' : 'Generate AI Hooks & Script'}
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Generated AI Results */}
+            {aiResult && (
+              <div className="space-y-3 pt-3 border-t border-slate-800 animate-in fade-in duration-300">
+                {/* 3 Clickable Hooks */}
+                <div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+                    Generated 3-Second Hooks (Click to apply into production notes):
+                  </p>
+                  <div className="space-y-2">
+                    {aiResult.hooks?.map((h, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleApplyHook(h.hook)}
+                        className="w-full text-left p-3 rounded-xl bg-charcoal-950/70 border border-slate-800 hover:border-lime-500/50 hover:bg-charcoal-950 transition-all group"
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-lime-bright block mb-1">
+                          {h.style}
+                        </span>
+                        <p className="text-xs text-slate-200 group-hover:text-white font-medium">
+                          "{h.hook}"
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Modernized Caption */}
+                {aiResult.modernizedCaption && (
+                  <div className="p-3.5 rounded-xl bg-charcoal-950/70 border border-slate-800 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Modernized 2026 Caption
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyCaption}
+                        className="text-[11px] text-lime-bright hover:text-white flex items-center gap-1 font-semibold"
+                      >
+                        {copiedCaption ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copiedCaption ? 'Copied!' : 'Copy Caption'}
+                      </button>
+                    </div>
+                    <p className="text-slate-300 text-xs whitespace-pre-line line-clamp-4">
+                      {aiResult.modernizedCaption}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Schedule or Reschedule to Planner Box */}

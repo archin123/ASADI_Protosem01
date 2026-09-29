@@ -11,6 +11,7 @@ import importRoutes from './routes/importRoutes.js';
 import recommendationRoutes from './routes/recommendationRoutes.js';
 import similarityRoutes from './routes/similarityRoutes.js';
 import plannerRoutes from './routes/plannerRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 
 dotenv.config();
 
@@ -55,6 +56,7 @@ app.use('/api/import', importRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/similarity', similarityRoutes);
 app.use('/api/planner', plannerRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
