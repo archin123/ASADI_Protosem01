@@ -1,20 +1,51 @@
-import React, { useState } from 'react';
-import { X, Calendar, Sparkles, TrendingUp, Clock, BookOpen, Layers, Check, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Calendar, Sparkles, TrendingUp, Clock, BookOpen, Layers, Check, ArrowRight, RotateCw, AlertCircle } from 'lucide-react';
 import { RecommendationBadge, MediaTypeBadge } from './Badge';
 
 export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlanner }) {
   if (!isOpen || !postAnalysis) return null;
 
-  const { post, recommendationType, compositeScore, targetFormat, metrics, breakdown, explainability } = postAnalysis;
-  const [plannedDate, setPlannedDate] = useState(() => {
+  const { 
+    post, 
+    recommendationType, 
+    compositeScore, 
+    targetFormat, 
+    metrics, 
+    breakdown, 
+    explainability, 
+    isScheduled, 
+    existingPlan 
+  } = postAnalysis;
+
+  const getDefaultDate = () => {
+    if (existingPlan?.plannedDate) {
+      return new Date(existingPlan.plannedDate).toISOString().split('T')[0];
+    }
     const d = new Date();
     d.setDate(d.getDate() + 3);
     return d.toISOString().split('T')[0];
-  });
-  const [selectedFormat, setSelectedFormat] = useState(targetFormat || 'REEL');
-  const [notes, setNotes] = useState('');
+  };
+
+  const [plannedDate, setPlannedDate] = useState(getDefaultDate);
+  const [selectedFormat, setSelectedFormat] = useState(existingPlan?.targetFormat || targetFormat || 'REEL');
+  const [notes, setNotes] = useState(existingPlan?.notes || '');
   const [isAdding, setIsAdding] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
+
+  useEffect(() => {
+    if (postAnalysis) {
+      if (existingPlan?.plannedDate) {
+        setPlannedDate(new Date(existingPlan.plannedDate).toISOString().split('T')[0]);
+      } else {
+        const d = new Date();
+        d.setDate(d.getDate() + 3);
+        setPlannedDate(d.toISOString().split('T')[0]);
+      }
+      setSelectedFormat(existingPlan?.targetFormat || targetFormat || 'REEL');
+      setNotes(existingPlan?.notes || '');
+      setAddedSuccess(false);
+    }
+  }, [postAnalysis]);
 
   const handlePlanSubmit = async () => {
     setIsAdding(true);
@@ -38,7 +69,7 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
         plannedDate,
         notes: notes || explainability?.tacticalAdvice,
         hookRevision: '',
-        status: 'planned',
+        status: existingPlan?.status || 'planned',
       });
       setAddedSuccess(true);
       setTimeout(() => {
@@ -65,7 +96,7 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
                 Score Analysis & Intelligence
               </h2>
               <p className="text-xs text-slate-400">
-                Explainable AI heuristic breakdown for post {post.originalId}
+                Explainable AI heuristic breakdown for post {post.originalId || post._id}
               </p>
             </div>
           </div>
@@ -219,12 +250,32 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
             </div>
           </div>
 
-          {/* Quick Schedule to Planner Box */}
-          <div className="p-4 rounded-2xl bg-charcoal-950/80 border border-lime-500/30 space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-lime-accent" />
-              Schedule directly to Content Planner
-            </h4>
+          {/* Schedule or Reschedule to Planner Box */}
+          <div className={`p-4 rounded-2xl border space-y-4 ${
+            isScheduled 
+              ? 'bg-charcoal-950/90 border-sky-500/40' 
+              : 'bg-charcoal-950/80 border-lime-500/30'
+          }`}>
+            
+            {/* Header with Reschedule indicator */}
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
+                <Calendar className={`w-4 h-4 ${isScheduled ? 'text-sky-400' : 'text-lime-accent'}`} />
+                {isScheduled ? 'Reschedule in Content Planner' : 'Schedule directly to Content Planner'}
+              </h4>
+
+              {isScheduled && (
+                <span className="text-[10px] font-bold text-sky-300 bg-sky-950 border border-sky-500/30 px-2.5 py-0.5 rounded-full">
+                  Already in Queue
+                </span>
+              )}
+            </div>
+
+            {isScheduled && existingPlan?.plannedDate && (
+              <p className="text-xs text-sky-200/90 bg-sky-950/40 p-2.5 rounded-xl border border-sky-500/20">
+                Currently planned for <strong>{new Date(existingPlan.plannedDate).toLocaleDateString()}</strong> as a <strong>{existingPlan.targetFormat || 'REEL'}</strong>. Adjust the target date, format, or notes below to reschedule.
+              </p>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -252,8 +303,7 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
                   value={plannedDate}
                   onChange={(e) => setPlannedDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-charcoal-800 border border-slate-700 text-sm text-white focus:outline-none focus:border-lime-accent"
-                >
-                </input>
+                />
               </div>
             </div>
 
@@ -264,7 +314,7 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional notes or updated 2026 hook idea..."
+                placeholder="Optional notes or updated hook idea..."
                 rows="2"
                 className="w-full px-3 py-2 rounded-xl bg-charcoal-800 border border-slate-700 text-sm text-white focus:outline-none focus:border-lime-accent resize-none placeholder:text-slate-600"
               />
@@ -276,19 +326,21 @@ export default function ScoreModal({ postAnalysis, isOpen, onClose, onAddToPlann
               className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-300 ${
                 addedSuccess
                   ? 'bg-emerald-500 text-white'
+                  : isScheduled
+                  ? 'bg-sky-500 hover:bg-sky-400 text-charcoal-950 font-black shadow-lg shadow-sky-500/20'
                   : 'bg-lime-accent hover:bg-lime-bright text-charcoal-950 shadow-glow-lime'
               }`}
             >
               {addedSuccess ? (
                 <>
                   <Check className="w-4 h-4" />
-                  Scheduled in Planner!
+                  {isScheduled ? 'Rescheduled in Planner!' : 'Scheduled in Planner!'}
                 </>
               ) : isAdding ? (
-                'Scheduling...'
+                isScheduled ? 'Rescheduling...' : 'Scheduling...'
               ) : (
                 <>
-                  Save to Content Planner
+                  {isScheduled ? 'Update & Reschedule in Planner' : 'Save to Content Planner'}
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 import { Post } from '../models/Post.js';
 import { PlanItem } from '../models/PlanItem.js';
@@ -116,10 +117,20 @@ export const PostRepository = {
   },
 
   async findById(id) {
+    if (!id) return null;
     if (!isMemoryFallback) {
-      return await Post.findById(id);
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        const found = await Post.findById(id);
+        if (found) return found;
+      }
+      return await Post.findOne({ originalId: id });
     }
-    return memoryStore.posts.get(id) || null;
+    const memPost = memoryStore.posts.get(id);
+    if (memPost) return memPost;
+    for (const post of memoryStore.posts.values()) {
+      if (post.originalId === id || post._id === id) return post;
+    }
+    return null;
   },
 
   async findByOriginalId(originalId) {
@@ -194,6 +205,17 @@ export const PlanRepository = {
       return await PlanItem.findById(id);
     }
     return memoryStore.planItems.get(id) || null;
+  },
+
+  async findByPostId(postId) {
+    if (!postId) return null;
+    if (!isMemoryFallback) {
+      return await PlanItem.findOne({ postId });
+    }
+    for (const item of memoryStore.planItems.values()) {
+      if (item.postId === postId) return item;
+    }
+    return null;
   },
 
   async create(planData) {

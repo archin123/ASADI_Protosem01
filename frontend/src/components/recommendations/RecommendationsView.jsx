@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, RefreshCw, Layers, Wrench, Archive, 
-  ArrowRight, TrendingUp, Clock, BookOpen, RotateCw, Filter, SlidersHorizontal 
+  ArrowRight, TrendingUp, Clock, BookOpen, RotateCw, Filter, SlidersHorizontal, Calendar 
 } from 'lucide-react';
 import { RecommendationBadge, MediaTypeBadge } from '../common/Badge';
 import { recommendationsAPI } from '../../services/api';
@@ -164,6 +164,12 @@ export default function RecommendationsView({ onOpenScoreModal }) {
                     <span className="text-[11px] text-lime-bright font-mono bg-lime-muted px-2 py-0.5 rounded border border-lime-500/20">
                       Target: {targetFormat}
                     </span>
+                    {rec.isScheduled && rec.existingPlan && (
+                      <span className="text-[11px] font-bold text-sky-300 bg-sky-950/80 border border-sky-500/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                        <Calendar className="w-3 h-3 text-sky-400" />
+                        Scheduled: {new Date(rec.existingPlan.plannedDate).toLocaleDateString()} ({rec.existingPlan.targetFormat || 'REEL'})
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-sm font-medium text-slate-100 line-clamp-2 leading-relaxed italic">
@@ -197,13 +203,17 @@ export default function RecommendationsView({ onOpenScoreModal }) {
                     </div>
                   </div>
 
-                  {/* Action Button */}
+                  {/* Action Button: Dynamic Inspect & Reschedule / Inspect & Schedule */}
                   <button
                     onClick={() => onOpenScoreModal(post.originalId || post._id)}
-                    className="py-2.5 px-4 rounded-xl bg-lime-accent hover:bg-lime-bright text-charcoal-950 font-bold text-xs flex items-center gap-1.5 shadow-glow-lime transition-all whitespace-nowrap"
+                    className={`py-2.5 px-4 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                      rec.isScheduled
+                        ? 'bg-sky-500 hover:bg-sky-400 text-charcoal-950 font-black shadow-md shadow-sky-500/20'
+                        : 'bg-lime-accent hover:bg-lime-bright text-charcoal-950 shadow-glow-lime'
+                    }`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    Inspect & Schedule
+                    {rec.isScheduled ? 'Inspect & Reschedule' : 'Inspect & Schedule'}
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
 

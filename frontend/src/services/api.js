@@ -49,7 +49,10 @@ export const importAPI = {
 
 export const recommendationsAPI = {
   getAll: (params) => api.get('/recommendations', { params }),
-  getPostDetail: (id) => api.get(`/recommendations/post/${id}`),
+  getPostDetail: (id) => api.get(`/recommendations/inspect/${id}`),
+  inspectPost: (id) => api.get(`/recommendations/inspect/${id}`),
+  reschedulePost: (data) => api.post('/recommendations/reschedule', data),
+  schedulePost: (data) => api.post('/recommendations/schedule', data),
 };
 
 export const similarityAPI = {

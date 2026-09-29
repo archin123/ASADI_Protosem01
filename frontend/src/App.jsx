@@ -48,14 +48,16 @@ function MainApp() {
     refreshSystemStatus();
   }, [currentTab]);
 
-  // Handle opening Score Modal
+  // Handle opening Score Modal (Inspect & Reschedule)
   const handleOpenScoreModal = async (postId) => {
     try {
-      const res = await recommendationsAPI.getPostDetail(postId);
+      const res = await recommendationsAPI.inspectPost(postId);
       if (res.data?.success) {
         setActivePostAnalysis({
           post: res.data.post,
           ...res.data.analysis,
+          isScheduled: res.data.isScheduled,
+          existingPlan: res.data.existingPlan,
         });
         setScoreModalOpen(true);
       }
@@ -65,13 +67,20 @@ function MainApp() {
     }
   };
 
-  // Handle adding to planner from ScoreModal
+  // Handle scheduling or rescheduling from ScoreModal
   const handleAddToPlanner = async (planData) => {
-    const res = await plannerAPI.createItem(planData);
-    if (res.data?.success) {
-      notify('Scheduled to Content Planner!', 'success');
+    try {
+      const res = await recommendationsAPI.reschedulePost(planData);
+      if (res.data?.success) {
+        notify(res.data.message || (res.data.isRescheduled ? 'Rescheduled in Content Planner!' : 'Scheduled in Content Planner!'), 'success');
+        refreshSystemStatus();
+      }
+      return res.data;
+    } catch (err) {
+      console.error('Failed to schedule/reschedule post:', err);
+      notify('Failed to schedule in planner', 'error');
+      throw err;
     }
-    return res.data;
   };
 
   // Reload 50 synthetic records
