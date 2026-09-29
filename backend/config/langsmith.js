@@ -62,7 +62,7 @@ const endpoint =
 const projectName = 
   process.env.LANGCHAIN_PROJECT || 
   process.env.LANGSMITH_PROJECT || 
-  'content-recycler';
+  'Content';
 
 // Ensure consistent process.env for LangChain and LangSmith runtimes
 const initialKey = resolveApiKey();
@@ -132,10 +132,10 @@ export function getLangSmithStatus() {
     tracingEnabled: true,
     cloudSyncActive: isConfigured,
     endpoint: process.env.LANGCHAIN_ENDPOINT || 'https://api.smith.langchain.com',
-    project: process.env.LANGCHAIN_PROJECT || 'content-recycler',
+    project: process.env.LANGCHAIN_PROJECT || 'Content',
     hasApiKey: isConfigured,
     keySource: isConfigured ? 'Securely loaded in backend (.env)' : 'Missing LANGCHAIN_API_KEY in .env',
-    cloudDashboardUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'content-recycler'}`,
+    cloudDashboardUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'Content'}`,
     recentTracesCount: recentTraces.length,
     runtime: {
       sdk: 'langsmith + @langchain/core',
@@ -153,7 +153,7 @@ export function getLangChainTracer() {
 
   try {
     return new LangChainTracer({
-      projectName: process.env.LANGCHAIN_PROJECT || 'content-recycler',
+      projectName: process.env.LANGCHAIN_PROJECT || 'Content',
     });
   } catch (err) {
     console.warn('[LangSmith] Failed to initialize LangChainTracer:', err.message);
