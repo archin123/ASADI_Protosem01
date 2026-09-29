@@ -139,9 +139,14 @@ export const findRecyclingOpportunitiesTool = tool(
   async ({ actionType = 'ALL', limit = 5 }) => {
     try {
       const allPosts = await PostRepository.findAll();
-      const recommendations = generateRecommendations(allPosts);
+      if (!allPosts || allPosts.length === 0) {
+        return JSON.stringify({ totalAnalyzed: 0, matchedCount: 0, topCandidates: [] });
+      }
 
-      let filtered = recommendations;
+      const recResult = generateRecommendations(allPosts);
+      const recList = Array.isArray(recResult) ? recResult : (recResult.recommendations || []);
+
+      let filtered = recList;
       if (actionType !== 'ALL') {
         filtered = filtered.filter(r => r.recommendationType === actionType);
       }
@@ -150,14 +155,14 @@ export const findRecyclingOpportunitiesTool = tool(
         .sort((a, b) => b.compositeScore - a.compositeScore)
         .slice(0, Math.min(limit, 10))
         .map(r => ({
-          postId: r.postId,
+          postId: r.postId || r.post?.originalId || r.post?._id,
           type: r.recommendationType,
           compositeScore: r.compositeScore,
           targetFormat: r.targetFormat,
-          calculatedER: `${r.metrics.calculatedER}%`,
-          dormantDays: r.metrics.ageDays,
-          captionSnippet: (r.caption || '').slice(0, 90) + '...',
-          reason: r.explainability.primaryReason,
+          calculatedER: `${r.metrics?.calculatedER || 0}%`,
+          dormantDays: r.metrics?.ageDays || 0,
+          captionSnippet: (r.post?.caption || r.caption || '').slice(0, 90) + '...',
+          reason: r.explainability?.primaryReason || 'High evergreen value',
         }));
 
       return JSON.stringify({
