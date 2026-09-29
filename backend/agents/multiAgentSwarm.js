@@ -348,8 +348,8 @@ async function rawRunAutonomousPipeline({ postId = 'auto', targetFormat = 'AUTO'
     langsmith: {
       tracingEnabled: process.env.LANGCHAIN_TRACING_V2 === 'true',
       runId: traceRunId,
-      project: process.env.LANGCHAIN_PROJECT || 'Content',
-      cloudUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'Content'}?run=${traceRunId}`,
+      project: process.env.LANGSMITH_PROJECT || process.env.LANGCHAIN_PROJECT || 'content-recycler',
+      cloudUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGSMITH_PROJECT || process.env.LANGCHAIN_PROJECT || 'content-recycler'}?run=${traceRunId}`,
     },
     summary: {
       auditorVerdict: auditResult.recommendation.explainableReason,
@@ -594,8 +594,8 @@ I am your autonomous **Instagram Content Recycling Agent Team** powered by LangC
       langsmith: {
         tracingEnabled: process.env.LANGCHAIN_TRACING_V2 === 'true',
         runId: traceRunId,
-        project: process.env.LANGCHAIN_PROJECT || 'Content',
-        cloudUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'Content'}?run=${traceRunId}`,
+        project: process.env.LANGSMITH_PROJECT || process.env.LANGCHAIN_PROJECT || 'content-recycler',
+        cloudUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGSMITH_PROJECT || process.env.LANGCHAIN_PROJECT || 'content-recycler'}?run=${traceRunId}`,
       },
     };
   } catch (err) {
@@ -636,8 +636,8 @@ async function rawJudgePostOrDraft({ postId, caption, hook, targetFormat = 'REEL
     langsmith: {
       tracingEnabled: process.env.LANGCHAIN_TRACING_V2 === 'true',
       runId: traceRunId,
-      project: process.env.LANGCHAIN_PROJECT || 'Content',
-      cloudUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'Content'}?run=${traceRunId}`,
+      project: process.env.LANGSMITH_PROJECT || process.env.LANGCHAIN_PROJECT || 'content-recycler',
+      cloudUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGSMITH_PROJECT || process.env.LANGCHAIN_PROJECT || 'content-recycler'}?run=${traceRunId}`,
     },
   };
 }

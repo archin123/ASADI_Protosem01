@@ -55,25 +55,25 @@ function resolveApiKey() {
 }
 
 const endpoint = 
-  process.env.LANGCHAIN_ENDPOINT || 
   process.env.LANGSMITH_ENDPOINT || 
+  process.env.LANGCHAIN_ENDPOINT || 
   'https://api.smith.langchain.com';
 
 const projectName = 
-  process.env.LANGCHAIN_PROJECT || 
   process.env.LANGSMITH_PROJECT || 
-  'Content';
+  process.env.LANGCHAIN_PROJECT || 
+  'content-recycler';
 
 // Ensure consistent process.env for LangChain and LangSmith runtimes
 const initialKey = resolveApiKey();
 const hasValidApiKey = Boolean(initialKey && initialKey.length > 10);
 
-process.env.LANGCHAIN_TRACING_V2 = 'true';
 process.env.LANGSMITH_TRACING = 'true';
-process.env.LANGCHAIN_ENDPOINT = endpoint;
+process.env.LANGCHAIN_TRACING_V2 = 'true';
 process.env.LANGSMITH_ENDPOINT = endpoint;
-process.env.LANGCHAIN_PROJECT = projectName;
+process.env.LANGCHAIN_ENDPOINT = endpoint;
 process.env.LANGSMITH_PROJECT = projectName;
+process.env.LANGCHAIN_PROJECT = projectName;
 if (hasValidApiKey) {
   process.env.LANGCHAIN_API_KEY = initialKey;
   process.env.LANGSMITH_API_KEY = initialKey;
@@ -131,11 +131,11 @@ export function getLangSmithStatus() {
   return {
     tracingEnabled: true,
     cloudSyncActive: isConfigured,
-    endpoint: process.env.LANGCHAIN_ENDPOINT || 'https://api.smith.langchain.com',
-    project: process.env.LANGCHAIN_PROJECT || 'Content',
+    endpoint: process.env.LANGSMITH_ENDPOINT || process.env.LANGCHAIN_ENDPOINT || 'https://api.smith.langchain.com',
+    project: process.env.LANGSMITH_PROJECT || process.env.LANGCHAIN_PROJECT || 'content-recycler',
     hasApiKey: isConfigured,
-    keySource: isConfigured ? 'Securely loaded in backend (.env)' : 'Missing LANGCHAIN_API_KEY in .env',
-    cloudDashboardUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'Content'}`,
+    keySource: isConfigured ? 'Securely loaded in backend (.env)' : 'Missing LANGSMITH_API_KEY in .env',
+    cloudDashboardUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGSMITH_PROJECT || process.env.LANGCHAIN_PROJECT || 'content-recycler'}`,
     recentTracesCount: recentTraces.length,
     runtime: {
       sdk: 'langsmith + @langchain/core',
@@ -153,7 +153,7 @@ export function getLangChainTracer() {
 
   try {
     return new LangChainTracer({
-      projectName: process.env.LANGCHAIN_PROJECT || 'Content',
+      projectName: process.env.LANGSMITH_PROJECT || process.env.LANGCHAIN_PROJECT || 'content-recycler',
     });
   } catch (err) {
     console.warn('[LangSmith] Failed to initialize LangChainTracer:', err.message);
