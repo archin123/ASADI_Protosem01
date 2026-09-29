@@ -1,5 +1,28 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 import dotenv from 'dotenv';
-dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Explicitly load .env from backend directory and workspace root
+const envCandidatePaths = [
+  path.resolve(__dirname, '.env'),
+  path.resolve(__dirname, '../.env'),
+  path.resolve(process.cwd(), 'backend', '.env'),
+  path.resolve(process.cwd(), '.env'),
+];
+
+let loadedEnvPath = null;
+for (const envPath of envCandidatePaths) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    if (!loadedEnvPath) {
+      loadedEnvPath = envPath;
+    }
+  }
+}
 
 // Initialize LangSmith configuration before loading agents
 import './config/langsmith.js';
@@ -53,11 +76,16 @@ app.get('/api/health', async (req, res) => {
     database: dbStatus,
     libraryPostCount: postCount,
     aiEngine: 'LangChain.js Multi-Agent Swarm + Google Gemini AI + TF-IDF Vectorizer',
+    environment: {
+      envFileLoaded: Boolean(loadedEnvPath),
+      envFilePath: loadedEnvPath || 'None found',
+    },
     langsmith: {
       tracingEnabled: langsmithStatus.tracingEnabled,
-      project: langsmithStatus.project,
-      endpoint: langsmithStatus.endpoint,
+      project: process.env.LANGSMITH_PROJECT || langsmithStatus.project,
+      endpoint: process.env.LANGSMITH_ENDPOINT || langsmithStatus.endpoint,
       hasApiKey: langsmithStatus.hasApiKey,
+      activeSdk: 'langsmith + @langchain/core',
     },
   });
 });
@@ -99,14 +127,19 @@ async function startServer() {
   }
 
   const ls = getLangSmithStatus();
+  const apiKeyPresent = Boolean(process.env.LANGSMITH_API_KEY && process.env.LANGSMITH_API_KEY.length > 10);
 
   app.listen(PORT, () => {
     console.log(`=======================================================`);
     console.log(`🚀 Content Recycler Backend Server running on port ${PORT}`);
     console.log(`📍 API Base: http://localhost:${PORT}/api`);
     console.log(`📍 Health Check: http://localhost:${PORT}/api/health`);
-    console.log(`📍 LangSmith Tracing: ${ls.tracingEnabled ? 'ENABLED' : 'DISABLED'} (Project: ${ls.project})`);
-    console.log(`📍 LangSmith Cloud Sync: ${ls.hasApiKey ? 'CONNECTED' : 'LOCAL TRACING (Add LANGCHAIN_API_KEY for Cloud Sync)'}`);
+    console.log(`📍 .env Loaded: ${loadedEnvPath || 'NONE'}`);
+    console.log(`📍 LANGSMITH_TRACING: ${process.env.LANGSMITH_TRACING}`);
+    console.log(`📍 LANGSMITH_ENDPOINT: ${process.env.LANGSMITH_ENDPOINT}`);
+    console.log(`📍 LANGSMITH_PROJECT: ${process.env.LANGSMITH_PROJECT}`);
+    console.log(`📍 LANGSMITH_API_KEY: ${apiKeyPresent ? 'Configured (Backend only)' : 'EMPTY / NOT_SET in .env'}`);
+    console.log(`📍 LangSmith Cloud Sync: ${apiKeyPresent ? 'CONNECTED TO CLOUD' : 'LOCAL BUFFER (Add key to .env for Cloud Sync)'}`);
     console.log(`=======================================================`);
   });
 }
