@@ -80,6 +80,8 @@ export const aiAPI = {
 
 export const agentAPI = {
   getStatus: () => api.get('/agents/status'),
+  getLangSmith: () => api.get('/agents/langsmith'),
+  getTraces: (params) => api.get('/agents/traces', { params }),
   getTools: () => api.get('/agents/tools'),
   runPipeline: (data) => api.post('/agents/run-pipeline', data),
   chat: (data) => api.post('/agents/chat', data),

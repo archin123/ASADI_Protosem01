@@ -1,6 +1,6 @@
 /**
  * Multi-Agent Swarm Coordinator using LangChain
- * Orchestrates 5 specialized autonomous agents:
+ * Orchestrates 5 specialized autonomous agents with full LangSmith tracing:
  * 1. 🔍 Auditor Agent - Content Performance & Decay Analyst
  * 2. 🧠 Strategist Agent - Audience Retention & Cannibalization Prevention
  * 3. 🎨 Creative Agent - Viral Hook & 2026 Scriptwriter (Gemini AI)
@@ -21,6 +21,14 @@ import {
   contentRecyclerTools,
 } from './tools/contentTools.js';
 import { PostRepository } from '../db/storage.js';
+import { 
+  traceable, 
+  getCurrentRunTree, 
+  getLangChainTracer, 
+  recordExecutionTrace,
+  getLangSmithStatus,
+  getRecentTraces 
+} from '../config/langsmith.js';
 
 dotenv.config();
 
@@ -29,14 +37,18 @@ const toolMap = new Map();
 contentRecyclerTools.forEach(t => toolMap.set(t.name, t));
 
 /**
- * Execute tool safely by name with argument object
+ * Execute tool safely by name with argument object and LangSmith trace binding
  */
-async function invokeToolByName(name, args) {
+async function rawInvokeToolByName(name, args) {
   const toolInstance = toolMap.get(name);
   if (!toolInstance) {
     throw new Error(`Tool '${name}' is not registered in the LangChain toolkit.`);
   }
-  const rawResult = await toolInstance.invoke(args);
+
+  const tracer = getLangChainTracer();
+  const config = tracer ? { callbacks: [tracer] } : undefined;
+  const rawResult = await toolInstance.invoke(args, config);
+
   try {
     return JSON.parse(rawResult);
   } catch (e) {
@@ -44,14 +56,79 @@ async function invokeToolByName(name, args) {
   }
 }
 
+export const invokeToolByName = traceable(rawInvokeToolByName, {
+  name: 'LangChain Tool Invocation',
+  run_type: 'tool',
+  metadata: (name, args) => ({
+    toolName: name,
+    framework: 'LangChain.js',
+  }),
+});
+
+/**
+ * Individual Agent Steps (Traced as Child Chains in LangSmith)
+ */
+const runAuditorAgentStep = traceable(
+  async (resolvedPostId) => {
+    return await invokeToolByName('auditPostTool', { postId: resolvedPostId });
+  },
+  { name: 'Auditor Agent Step', run_type: 'chain', metadata: { agent: 'Auditor Agent' } }
+);
+
+const runStrategistAgentStep = traceable(
+  async (caption, chosenFormat) => {
+    return await invokeToolByName('detectTopicCannibalizationTool', {
+      text: caption,
+      threshold: 0.28,
+    });
+  },
+  { name: 'Strategist Agent Step', run_type: 'chain', metadata: { agent: 'Strategist Agent' } }
+);
+
+const runCreativeAgentStep = traceable(
+  async (caption, recommendationType, chosenFormat) => {
+    return await invokeToolByName('generateViralHooksTool', {
+      caption,
+      recommendationType,
+      targetFormat: chosenFormat,
+    });
+  },
+  { name: 'Creative Agent Step', run_type: 'chain', metadata: { agent: 'Creative Agent' } }
+);
+
+const runJudgeAgentStep = traceable(
+  async (resolvedPostId, caption, hook, chosenFormat) => {
+    return await invokeToolByName('judgeContentQualityTool', {
+      postId: resolvedPostId,
+      caption,
+      hook,
+      targetFormat: chosenFormat,
+    });
+  },
+  { name: 'Judge Agent Step', run_type: 'chain', metadata: { agent: 'Judge Agent' } }
+);
+
+const runPlannerAgentStep = traceable(
+  async (resolvedPostId, plannedDateStr, chosenFormat, planNotes) => {
+    return await invokeToolByName('schedulePostToPlannerTool', {
+      postId: resolvedPostId,
+      plannedDate: plannedDateStr,
+      targetFormat: chosenFormat,
+      notes: planNotes,
+    });
+  },
+  { name: 'Planner Agent Step', run_type: 'chain', metadata: { agent: 'Planner Agent' } }
+);
+
 /**
  * 1. Autonomous Multi-Agent Swarm Pipeline
- * Runs all 4 agents in sequential collaboration to analyze, strategize,
- * draft viral hooks, and schedule a recycled asset.
+ * Runs all 5 agents in sequential collaboration with full LangSmith tracing.
  */
-export async function runAutonomousPipeline({ postId = 'auto', targetFormat = 'AUTO', customNotes = '', daysOffset = 7 } = {}) {
+async function rawRunAutonomousPipeline({ postId = 'auto', targetFormat = 'AUTO', customNotes = '', daysOffset = 7 } = {}) {
   const executionTrace = [];
   const startTime = Date.now();
+  const currentRun = getCurrentRunTree();
+  const traceRunId = currentRun?.id || `run_${Date.now()}`;
 
   // ----------------------------------------------------
   // AGENT 1: 🔍 AUDITOR AGENT (Performance & Decay Analyst)
@@ -98,7 +175,7 @@ export async function runAutonomousPipeline({ postId = 'auto', targetFormat = 'A
   }
 
   // Audit the selected post
-  auditResult = await invokeToolByName('auditPostTool', { postId: resolvedPostId });
+  auditResult = await runAuditorAgentStep(resolvedPostId);
   if (auditResult.error) {
     throw new Error(auditResult.error);
   }
@@ -121,10 +198,7 @@ export async function runAutonomousPipeline({ postId = 'auto', targetFormat = 'A
     ? targetFormat 
     : (auditResult.recommendation.targetFormat || 'REEL');
 
-  const cannibalizationResult = await invokeToolByName('detectTopicCannibalizationTool', {
-    text: auditResult.caption,
-    threshold: 0.28,
-  });
+  const cannibalizationResult = await runStrategistAgentStep(auditResult.caption, chosenFormat);
 
   executionTrace.push({
     step: 3,
@@ -146,11 +220,11 @@ export async function runAutonomousPipeline({ postId = 'auto', targetFormat = 'A
   // ----------------------------------------------------
   // AGENT 3: 🎨 CREATIVE AGENT (Viral Hook & Modern Scriptwriter)
   // ----------------------------------------------------
-  const hookResult = await invokeToolByName('generateViralHooksTool', {
-    caption: auditResult.caption,
-    recommendationType: auditResult.recommendation.type,
-    targetFormat: chosenFormat,
-  });
+  const hookResult = await runCreativeAgentStep(
+    auditResult.caption, 
+    auditResult.recommendation.type, 
+    chosenFormat
+  );
 
   const bestHook = hookResult.hooks?.[0]?.hook || `Stop scrolling: How to master this in 2026.`;
 
@@ -177,12 +251,12 @@ export async function runAutonomousPipeline({ postId = 'auto', targetFormat = 'A
   // ----------------------------------------------------
   // AGENT 4: ⚖️ JUDGE AGENT (Chief Quality & Editorial Judge)
   // ----------------------------------------------------
-  const judgeToolResult = await invokeToolByName('judgeContentQualityTool', {
-    postId: resolvedPostId,
-    caption: auditResult.caption,
-    hook: bestHook,
-    targetFormat: chosenFormat,
-  });
+  const judgeToolResult = await runJudgeAgentStep(
+    resolvedPostId,
+    auditResult.caption,
+    bestHook,
+    chosenFormat
+  );
 
   const evaluation = judgeToolResult.evaluation || {};
   const verdict = evaluation.verdict || 'APPROVED';
@@ -220,12 +294,12 @@ export async function runAutonomousPipeline({ postId = 'auto', targetFormat = 'A
     ? `${customNotes} | Hook: "${bestHook}" | Judge Verdict: ${verdict}`
     : `Primary Hook: "${bestHook}" | Judge Verdict: ${verdict} (${qualityScore}/100) | Generated by LangChain Swarm`;
 
-  const scheduleResult = await invokeToolByName('schedulePostToPlannerTool', {
-    postId: resolvedPostId,
-    plannedDate: plannedDateStr,
-    targetFormat: chosenFormat,
-    notes: planNotes,
-  });
+  const scheduleResult = await runPlannerAgentStep(
+    resolvedPostId,
+    plannedDateStr,
+    chosenFormat,
+    planNotes
+  );
 
   executionTrace.push({
     step: 6,
@@ -245,6 +319,25 @@ export async function runAutonomousPipeline({ postId = 'auto', targetFormat = 'A
 
   const durationMs = Date.now() - startTime;
 
+  // Record into LangSmith trace buffer
+  recordExecutionTrace({
+    id: traceRunId,
+    name: 'Autonomous Multi-Agent Swarm Pipeline',
+    runType: 'chain',
+    agent: 'Swarm Orchestrator',
+    durationMs,
+    status: 'SUCCESS',
+    inputs: { postId: resolvedPostId, targetFormat: chosenFormat, daysOffset, customNotes },
+    outputs: {
+      postId: resolvedPostId,
+      chosenFormat,
+      verdict,
+      qualityScore,
+      scheduledDate: plannedDateStr,
+    },
+    childRuns: executionTrace,
+  });
+
   return {
     success: true,
     executionTimeMs: durationMs,
@@ -252,6 +345,12 @@ export async function runAutonomousPipeline({ postId = 'auto', targetFormat = 'A
     postId: resolvedPostId,
     targetFormat: chosenFormat,
     plannedDate: plannedDateStr,
+    langsmith: {
+      tracingEnabled: process.env.LANGCHAIN_TRACING_V2 === 'true',
+      runId: traceRunId,
+      project: process.env.LANGCHAIN_PROJECT || 'content-recycler',
+      cloudUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'content-recycler'}?run=${traceRunId}`,
+    },
     summary: {
       auditorVerdict: auditResult.recommendation.explainableReason,
       cannibalizationStatus: cannibalizationResult.riskLevel,
@@ -268,23 +367,37 @@ export async function runAutonomousPipeline({ postId = 'auto', targetFormat = 'A
   };
 }
 
+export const runAutonomousPipeline = traceable(
+  rawRunAutonomousPipeline,
+  {
+    name: 'Autonomous Multi-Agent Pipeline',
+    run_type: 'chain',
+    tags: ['multi-agent', 'langchain', 'swarm', 'instagram-recycler'],
+    metadata: {
+      framework: 'LangChain.js',
+      provider: 'Google Gemini',
+      agents: ['Auditor', 'Strategist', 'Creative', 'Judge', 'Planner'],
+    },
+  }
+);
+
 /**
  * 2. Interactive LangChain Agent Copilot (Conversational Chat)
- * Handles open-ended creator queries by reasoning, selecting,
- * and executing LangChain tools dynamically.
+ * Handles open-ended creator queries with full LangSmith tracing.
  */
-export async function chatWithAgents({ message, history = [], context = {} }) {
+async function rawChatWithAgents({ message, history = [], context = {} }) {
   const lowerMsg = (message || '').toLowerCase();
   const thoughts = [];
   const toolsExecuted = [];
+  const startTime = Date.now();
+  const currentRun = getCurrentRunTree();
+  const traceRunId = currentRun?.id || `run_${Date.now()}`;
 
-  // Determine intent & select tool
   let finalResponse = '';
 
   try {
     if (lowerMsg.includes('audit') || lowerMsg.includes('score') || lowerMsg.includes('inspect') || lowerMsg.includes('synth_post')) {
-      // Find post ID in message
-      const match = message.match(/SYNTH_POST_\d+|mem_\w+/i);
+      const match = message.match(/SYNTH_POST_\d+|TEST_POST_\d+|mem_\w+/i);
       const postId = match ? match[0].toUpperCase() : 'SYNTH_POST_001';
 
       thoughts.push(`Auditor Agent activated: Inspecting post ID '${postId}' to evaluate engagement rate, evergreen index, and dormancy.`);
@@ -370,7 +483,7 @@ ${(result.hashtags || []).map(t => `#${t}`).join(' ')}`;
     } else if (lowerMsg.includes('judge') || lowerMsg.includes('critique') || lowerMsg.includes('verdict') || lowerMsg.includes('review') || lowerMsg.includes('rate') || lowerMsg.includes('scorecard')) {
       thoughts.push(`Judge Agent activated: Conducting rigorous editorial critique, scoring 4-point rubric, and assigning formal production verdict.`);
       
-      const match = message.match(/SYNTH_POST_\d+|mem_\w+/i);
+      const match = message.match(/SYNTH_POST_\d+|TEST_POST_\d+|mem_\w+/i);
       const postId = match ? match[0].toUpperCase() : null;
 
       const judge = await invokeToolByName('judgeContentQualityTool', {
@@ -406,7 +519,7 @@ ${(ev.weaknesses || ['Ensure hook cuts directly to the core lesson']).map(w => `
     } else if (lowerMsg.includes('schedule') || lowerMsg.includes('calendar') || lowerMsg.includes('plan')) {
       thoughts.push(`Planner Agent activated: Processing calendar scheduling request.`);
       
-      const match = message.match(/SYNTH_POST_\d+|mem_\w+/i);
+      const match = message.match(/SYNTH_POST_\d+|TEST_POST_\d+|mem_\w+/i);
       const postId = match ? match[0].toUpperCase() : 'SYNTH_POST_001';
 
       const sched = await invokeToolByName('schedulePostToPlannerTool', {
@@ -429,7 +542,6 @@ ${(ev.weaknesses || ['Ensure hook cuts directly to the core lesson']).map(w => `
 You can view and manage this post inside the **Content Planner** view!`;
 
     } else {
-      // General overview
       thoughts.push(`Auditor Agent activated: Pulling library overview and creator baseline statistics.`);
       toolsExecuted.push({ tool: 'fetchLibraryOverviewTool', input: { filterFormat: 'ALL' } });
 
@@ -461,11 +573,30 @@ I am your autonomous **Instagram Content Recycling Agent Team** powered by LangC
 6. 🚀 *"Run the autonomous 5-agent swarm pipeline on my top post"*`;
     }
 
+    const durationMs = Date.now() - startTime;
+
+    recordExecutionTrace({
+      id: traceRunId,
+      name: 'LangChain Agent Copilot Chat',
+      runType: 'chain',
+      agent: 'Agent Copilot',
+      durationMs,
+      status: 'SUCCESS',
+      inputs: { message },
+      outputs: { finalResponse, thoughtsCount: thoughts.length, toolsCount: toolsExecuted.length },
+    });
+
     return {
       success: true,
       message: finalResponse,
       thoughts,
       toolsExecuted,
+      langsmith: {
+        tracingEnabled: process.env.LANGCHAIN_TRACING_V2 === 'true',
+        runId: traceRunId,
+        project: process.env.LANGCHAIN_PROJECT || 'content-recycler',
+        cloudUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'content-recycler'}?run=${traceRunId}`,
+      },
     };
   } catch (err) {
     return {
@@ -477,29 +608,62 @@ I am your autonomous **Instagram Content Recycling Agent Team** powered by LangC
   }
 }
 
+export const chatWithAgents = traceable(
+  rawChatWithAgents,
+  {
+    name: 'LangChain Agent Copilot Chat',
+    run_type: 'chain',
+    tags: ['copilot', 'chat', 'langchain'],
+  }
+);
+
 /**
  * 3. Standalone Judge Agent evaluation
  */
-export async function judgePostOrDraft({ postId, caption, hook, targetFormat = 'REEL' }) {
-  return await invokeToolByName('judgeContentQualityTool', {
+async function rawJudgePostOrDraft({ postId, caption, hook, targetFormat = 'REEL' }) {
+  const result = await invokeToolByName('judgeContentQualityTool', {
     postId,
     caption,
     hook,
     targetFormat,
   });
+
+  const currentRun = getCurrentRunTree();
+  const traceRunId = currentRun?.id || `run_${Date.now()}`;
+
+  return {
+    ...result,
+    langsmith: {
+      tracingEnabled: process.env.LANGCHAIN_TRACING_V2 === 'true',
+      runId: traceRunId,
+      project: process.env.LANGCHAIN_PROJECT || 'content-recycler',
+      cloudUrl: `https://smith.langchain.com/o/default/projects/p/${process.env.LANGCHAIN_PROJECT || 'content-recycler'}?run=${traceRunId}`,
+    },
+  };
 }
 
+export const judgePostOrDraft = traceable(
+  rawJudgePostOrDraft,
+  {
+    name: 'Judge Agent Standalone Evaluation',
+    run_type: 'chain',
+    tags: ['judge', 'rubric-scoring', 'editorial'],
+  }
+);
+
 /**
- * 4. Health & Roster Status of the LangChain Agent Swarm
+ * 4. Health & Roster Status of the LangChain Agent Swarm + LangSmith
  */
 export async function getSwarmStatus() {
   const postsCount = await PostRepository.count();
+  const langsmithStatus = getLangSmithStatus();
 
   return {
     success: true,
-    framework: 'LangChain.js (@langchain/core + @langchain/google-genai)',
+    framework: 'LangChain.js (@langchain/core + @langchain/google-genai + langsmith)',
     aiEngine: 'Google Gemini 3.5 / 3.8 Flash Cascade',
     swarmState: 'ACTIVE & READY',
+    langsmith: langsmithStatus,
     registeredAgents: [
       {
         id: 'auditor',

@@ -27,7 +27,8 @@ import {
   ThumbsUp,
   ThumbsDown,
   Award,
-  Lightbulb
+  Lightbulb,
+  Activity
 } from 'lucide-react';
 import { agentAPI, postsAPI } from '../../services/api';
 import { RecommendationBadge, MediaTypeBadge } from '../common/Badge';
@@ -84,9 +85,32 @@ How can our team assist your content recycling strategy today?`,
   // Copy state
   const [copiedCaption, setCopiedCaption] = useState(false);
 
+  // LangSmith Traces state
+  const [traces, setTraces] = useState([]);
+  const [tracesLoading, setTracesLoading] = useState(false);
+  const [selectedTraceDetail, setSelectedTraceDetail] = useState(null);
+
   useEffect(() => {
     loadInitialData();
+    loadTraces();
   }, []);
+
+  const loadTraces = async () => {
+    setTracesLoading(true);
+    try {
+      const res = await agentAPI.getTraces({ limit: 15 });
+      if (res.data?.traces) {
+        setTraces(res.data.traces);
+        if (res.data.traces.length > 0) {
+          setSelectedTraceDetail(prev => prev || res.data.traces[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load traces:', err);
+    } finally {
+      setTracesLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'chat' && chatEndRef.current) {
@@ -226,14 +250,18 @@ How can our team assist your content recycling strategy today?`,
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-lime-muted text-lime-bright border border-lime-500/30">
                 <Cpu className="w-3.5 h-3.5" />
                 LangChain.js Multi-Agent Swarm
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono bg-charcoal-800 text-slate-300 border border-slate-700">
                 <Zap className="w-3 h-3 text-amber-400" />
-                Gemini 3.5 Flash
+                Gemini Flash
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono bg-charcoal-800 text-slate-300 border border-emerald-500/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-emerald-300 font-bold">LangSmith</span>: {swarmStatus?.langsmith?.project || 'content-recycler'}
               </span>
             </div>
             <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight flex items-center gap-3">
@@ -376,6 +404,18 @@ How can our team assist your content recycling strategy today?`,
         >
           <Wrench className="w-3.5 h-3.5" />
           LangChain Tools ({toolsList.length || 8})
+        </button>
+
+        <button
+          onClick={() => { setActiveTab('traces'); loadTraces(); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'traces'
+              ? 'bg-emerald-400 text-charcoal-950 shadow-glow-subtle font-black'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          LangSmith Traces ({traces.length || swarmStatus?.langsmith?.recentTracesCount || 0})
         </button>
       </div>
 
@@ -598,6 +638,40 @@ How can our team assist your content recycling strategy today?`,
                       <p className="text-slate-300 text-xs italic">
                         "{pipelineResult.summary.judgeRemarks}"
                       </p>
+                    </div>
+                  )}
+
+                  {/* LangSmith Trace Observability Bar */}
+                  {pipelineResult.langsmith && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-charcoal-950 border border-emerald-500/30 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[11px] font-mono text-slate-300">
+                          LangSmith Run: <strong className="text-white">{pipelineResult.langsmith.runId}</strong>
+                        </span>
+                        <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30 font-mono">
+                          {pipelineResult.langsmith.project}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setActiveTab('traces'); loadTraces(); }}
+                          className="px-2.5 py-1 rounded-lg bg-charcoal-800 hover:bg-charcoal-700 text-slate-200 text-[11px] font-bold border border-slate-700 transition-all flex items-center gap-1"
+                        >
+                          <Activity className="w-3 h-3 text-emerald-400" />
+                          View Full Trace Spans
+                        </button>
+                        <a
+                          href={pipelineResult.langsmith.cloudUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold transition-all"
+                        >
+                          <span>LangSmith Cloud</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
                     </div>
                   )}
 
@@ -1133,6 +1207,265 @@ How can our team assist your content recycling strategy today?`,
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: LANGSMITH OBSERVABILITY & TRACE EXPLORER */}
+      {activeTab === 'traces' && (
+        <div className="space-y-6">
+          {/* LangSmith Telemetry Overview */}
+          <div className="p-6 rounded-3xl bg-charcoal-900 border border-slate-800 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-950/80 text-emerald-400 border border-emerald-500/30">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    LangSmith Observability Engine
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400 bg-charcoal-800 px-2 py-0.5 rounded border border-slate-700">
+                    SDK: langsmith + @langchain/core
+                  </span>
+                </div>
+                <h3 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
+                  Live Agent & LLM Execution Traces
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                  Every multi-agent pipeline run, standalone Judge critique, and interactive copilot session is captured into LangSmith trace spans for latency, token, and prompt telemetry.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={loadTraces}
+                  disabled={tracesLoading}
+                  className="px-3.5 py-2 rounded-xl bg-charcoal-800 hover:bg-charcoal-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 text-lime-bright ${tracesLoading ? 'animate-spin' : ''}`} />
+                  Refresh Traces
+                </button>
+                <a
+                  href={swarmStatus?.langsmith?.cloudDashboardUrl || `https://smith.langchain.com/o/default/projects/p/content-recycler`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold border border-emerald-500/40 transition-all flex items-center gap-1.5"
+                >
+                  <span>LangSmith Cloud</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* Config & Status Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-charcoal-950 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Active Project</span>
+                <span className="font-mono font-bold text-white text-xs">{swarmStatus?.langsmith?.project || 'content-recycler'}</span>
+                <span className="text-[10px] text-emerald-400 block">Tracing Active</span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-charcoal-950 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Endpoint</span>
+                <span className="font-mono text-slate-300 text-xs truncate block">{swarmStatus?.langsmith?.endpoint || 'https://api.smith.langchain.com'}</span>
+                <span className="text-[10px] text-slate-500 block">REST v1/runs</span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-charcoal-950 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Cloud Sync Status</span>
+                <span className={`font-bold text-xs flex items-center gap-1.5 ${swarmStatus?.langsmith?.hasApiKey ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  <span className={`w-2 h-2 rounded-full ${swarmStatus?.langsmith?.hasApiKey ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  {swarmStatus?.langsmith?.hasApiKey ? 'Cloud Connected' : 'Local Tracing (Ready for Key)'}
+                </span>
+                <span className="text-[10px] text-slate-500 truncate block">{swarmStatus?.langsmith?.apiKeyMasked || 'LANGCHAIN_API_KEY in .env'}</span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-charcoal-950 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Traces In Memory</span>
+                <span className="font-mono font-bold text-lime-bright text-xs">{traces.length} Runs Recorded</span>
+                <span className="text-[10px] text-slate-500 block">Full Hierarchy Saved</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Traces List & Detail Split View */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Left Column: Trace Runs List */}
+            <div className="lg:col-span-5 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <span>Recent Traced Runs ({traces.length})</span>
+                {tracesLoading && <span className="text-lime-bright text-[11px] font-normal">Loading...</span>}
+              </h4>
+
+              {traces.length === 0 ? (
+                <div className="p-8 rounded-2xl bg-charcoal-900 border border-slate-800 text-center space-y-3">
+                  <Activity className="w-8 h-8 text-slate-600 mx-auto" />
+                  <p className="text-xs text-slate-400">No traces recorded in this session yet.</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('pipeline')}
+                    className="px-4 py-2 rounded-xl bg-lime-accent text-charcoal-950 text-xs font-bold"
+                  >
+                    Run Multi-Agent Pipeline to Generate Trace
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
+                  {traces.map((tr) => {
+                    const isSelected = selectedTraceDetail?.id === tr.id;
+                    return (
+                      <div
+                        key={tr.id}
+                        onClick={() => setSelectedTraceDetail(tr)}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
+                          isSelected
+                            ? 'bg-charcoal-850 border-emerald-500/50 shadow-glow-subtle'
+                            : 'bg-charcoal-900 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                            {tr.name}
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20">
+                            {tr.durationMs}ms
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                          <span>Agent: {tr.agent}</span>
+                          <span>{new Date(tr.timestamp).toLocaleTimeString()}</span>
+                        </div>
+
+                        {tr.inputs?.postId && (
+                          <div className="text-[11px] text-slate-300">
+                            Target Post: <strong className="text-lime-bright">{tr.inputs.postId}</strong> ({tr.inputs.targetFormat || 'AUTO'})
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono">
+                          <span>Run ID: {tr.id.slice(0, 16)}...</span>
+                          <span className="text-emerald-400 flex items-center gap-1">
+                            {tr.childRuns?.length || 0} Spans
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Selected Trace Inspector */}
+            <div className="lg:col-span-7">
+              {selectedTraceDetail ? (
+                <div className="p-6 rounded-3xl bg-charcoal-900 border border-slate-800 space-y-5">
+                  <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/60 px-2.5 py-0.5 rounded-lg border border-emerald-500/30">
+                          {selectedTraceDetail.runType} trace
+                        </span>
+                        <span className="text-xs font-bold text-white">{selectedTraceDetail.name}</span>
+                      </div>
+                      <p className="text-[11px] font-mono text-slate-400 mt-1">
+                        Run ID: {selectedTraceDetail.id}
+                      </p>
+                    </div>
+
+                    <a
+                      href={selectedTraceDetail.langsmithUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-charcoal-800 hover:bg-emerald-500/20 hover:text-emerald-300 text-xs font-bold text-slate-300 border border-slate-700 transition-all flex items-center gap-1.5"
+                    >
+                      <span>Cloud Span</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  {/* Latency & IO Metadata */}
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div className="p-3 rounded-xl bg-charcoal-950 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Duration</span>
+                      <span className="font-mono font-bold text-lime-bright text-xs">{selectedTraceDetail.durationMs}ms</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-charcoal-950 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Status</span>
+                      <span className="font-bold text-emerald-400 text-xs">{selectedTraceDetail.status}</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-charcoal-950 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Timestamp</span>
+                      <span className="text-slate-300 text-xs truncate block">{new Date(selectedTraceDetail.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+
+                  {/* Child Runs / Agent Hierarchy Spans */}
+                  {selectedTraceDetail.childRuns?.length > 0 && (
+                    <div className="space-y-3">
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <Layers className="w-3.5 h-3.5 text-lime-bright" />
+                        Execution Hierarchy ({selectedTraceDetail.childRuns.length} Nested Spans)
+                      </h5>
+
+                      <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+                        {selectedTraceDetail.childRuns.map((span, sIdx) => (
+                          <div 
+                            key={sIdx}
+                            className="p-3 rounded-xl bg-charcoal-950 border border-slate-800/80 space-y-1.5 text-xs"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-white flex items-center gap-1.5">
+                                <span className="text-lime-bright font-mono">#{span.step || sIdx + 1}</span>
+                                {span.agent || span.name}
+                              </span>
+                              <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-500/20">
+                                {span.action || span.runType || 'Tool Call'}
+                              </span>
+                            </div>
+
+                            {span.thought && (
+                              <p className="text-[11px] text-slate-300 italic bg-charcoal-900/60 p-2 rounded-lg border border-slate-850">
+                                "{span.thought}"
+                              </p>
+                            )}
+
+                            {span.output?.primaryHook && (
+                              <div className="text-[11px] text-emerald-300">
+                                <strong>Generated Viral Hook:</strong> "{span.output.primaryHook}"
+                              </div>
+                            )}
+
+                            {span.output?.verdict && (
+                              <div className="text-[11px] text-purple-300">
+                                <strong>Judge Verdict:</strong> {span.output.verdict} (Score: {span.output.scores?.compositeScore || 'N/A'}/100)
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Raw Outputs JSON */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Trace Outputs (Sanitized Summary)
+                    </span>
+                    <pre className="p-3 rounded-xl bg-charcoal-950 border border-slate-800 text-[11px] font-mono text-slate-300 overflow-x-auto max-h-36">
+                      {JSON.stringify(selectedTraceDetail.outputs, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-12 rounded-3xl bg-charcoal-900 border border-slate-800 text-center space-y-3">
+                  <Activity className="w-8 h-8 text-slate-600 mx-auto" />
+                  <p className="text-xs text-slate-400">Select a trace on the left to inspect its hierarchical spans and telemetry.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

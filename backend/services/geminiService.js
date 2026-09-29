@@ -1,24 +1,25 @@
 /**
  * Gemini AI Content Generation Service
  * Powered by Google Gemini AI (gemini-3.5-flash / gemini-3.8-flash / gemini-3.1-flash-lite)
- * Provides automated hook generation, 2026 caption rewriting,
- * and multi-post thematic carousel synthesis.
+ * Fully connected to LangSmith for end-to-end LLM call tracing, token/latency inspection, and prompt observability.
  */
 
 import dotenv from 'dotenv';
+import { traceable } from '../config/langsmith.js';
+
 dotenv.config();
 
 const CANDIDATE_MODELS = [
-  'gemini-3.5-flash',
-  'gemini-3.8-flash',
+  'gemini-flash-lite-latest',
   'gemini-3.1-flash-lite',
-  'gemini-flash-lite-latest'
+  'gemini-3.8-flash',
+  'gemini-3.5-flash'
 ];
 
 /**
- * Call Gemini REST API with candidate model cascade
+ * Raw Gemini REST API call with candidate model cascade
  */
-async function callGemini(prompt, systemInstruction = '') {
+async function rawCallGemini(prompt, systemInstruction = '') {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not configured in .env');
@@ -52,6 +53,7 @@ async function callGemini(prompt, systemInstruction = '') {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!response.ok) {
@@ -76,6 +78,22 @@ async function callGemini(prompt, systemInstruction = '') {
 }
 
 /**
+ * Traced Gemini LLM Call via LangSmith
+ */
+export const callGemini = traceable(
+  rawCallGemini,
+  {
+    name: 'Google Gemini generateContent',
+    run_type: 'llm',
+    metadata: {
+      provider: 'Google DeepMind',
+      service: 'Generative Language API',
+      candidateModels: CANDIDATE_MODELS,
+    },
+  }
+);
+
+/**
  * Clean and parse JSON from Gemini response (handles markdown code fences)
  */
 function extractJSON(rawText) {
@@ -93,7 +111,7 @@ function extractJSON(rawText) {
 /**
  * Generate 3 viral hooks and rewritten caption for a post
  */
-export async function generateHooksAndRewrite({ caption, recommendationType, targetFormat, stats = {}, niche = 'Tech & Creator Growth' }) {
+async function rawGenerateHooksAndRewrite({ caption, recommendationType, targetFormat, stats = {}, niche = 'Tech & Creator Growth' }) {
   const systemInstruction = `You are an elite viral Instagram growth strategist and creative copywriter. Your goal is to maximize organic bookmark/save velocity and retention by crafting irresistible opening hooks and modern 2026 social copy. Always return valid JSON only.`;
 
   const prompt = `
@@ -176,10 +194,19 @@ Produce a JSON object with this exact structure:
   }
 }
 
+export const generateHooksAndRewrite = traceable(
+  rawGenerateHooksAndRewrite,
+  {
+    name: 'Creative Agent: Hook Generator',
+    run_type: 'chain',
+    metadata: { agent: 'Creative Agent', framework: 'LangChain.js' },
+  }
+);
+
 /**
  * Generate a synthesized Masterclass Carousel script for multi-post clusters
  */
-export async function generateClusterScript({ clusterTitle, posts, suggestedFormat = '10-SLIDE MEGA CAROUSEL', niche = 'Tech & Creator Growth' }) {
+async function rawGenerateClusterScript({ clusterTitle, posts, suggestedFormat = '10-SLIDE MEGA CAROUSEL', niche = 'Tech & Creator Growth' }) {
   const systemInstruction = `You are a master social media content director synthesizing multiple related technical posts into a unified, high-performing educational guide. Return valid JSON only.`;
 
   const postsSummary = (posts || []).map((p, idx) => `Post ${idx + 1} (${p.mediaType}): "${p.caption}" (Reach: ${p.reach}, Saves: ${p.saves})`).join('\n');
@@ -257,10 +284,19 @@ Produce a JSON object with this exact structure:
   }
 }
 
+export const generateClusterScript = traceable(
+  rawGenerateClusterScript,
+  {
+    name: 'Cluster Script Synthesizer',
+    run_type: 'chain',
+    metadata: { agent: 'Creative Agent', framework: 'LangChain.js' },
+  }
+);
+
 /**
  * Judge / Evaluator Agent: Critiques and scores content quality, hook retention, and recycling readiness.
  */
-export async function judgeContentQuality({ 
+async function rawJudgeContentQuality({ 
   caption = '', 
   hook = '', 
   targetFormat = 'REEL', 
@@ -369,6 +405,15 @@ Provide structured JSON:
     };
   }
 }
+
+export const judgeContentQuality = traceable(
+  rawJudgeContentQuality,
+  {
+    name: 'Judge Agent: Quality Evaluator',
+    run_type: 'chain',
+    metadata: { agent: 'Judge Agent', framework: 'LangChain.js' },
+  }
+);
 
 /**
  * Health check for Gemini API
